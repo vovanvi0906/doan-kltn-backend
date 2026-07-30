@@ -1,0 +1,150 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  CUSTOMER
+  WORKER
+  ADMIN
+}
+
+enum OrderStatus {
+  PENDING
+  MATCHED
+  WORKER_ACCEPTED
+  IN_PROGRESS
+  COMPLETED
+  PAYMENT_CONFIRMED
+  CLOSED
+  CANCELLED
+  DISPUTED
+}
+
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  passwordHash String
+  phone        String?
+  role         Role
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  customerProfile CustomerProfile?
+  workerProfile   WorkerProfile?
+}
+
+model CustomerProfile {
+  id         String  @id @default(uuid())
+  userId     String  @unique
+  user       User    @relation(fields: [userId], references: [id])
+  address    String?
+  defaultLat Float?
+  defaultLng Float?
+
+  orders Order[]
+}
+
+model WorkerProfile {
+  id             String   @id @default(uuid())
+  userId         String   @unique
+  user           User     @relation(fields: [userId], references: [id])
+  skills         String[]
+  idCardVerified Boolean  @default(false)
+  ratingAvg      Float    @default(0)
+  walletBalance  Decimal  @default(0)
+  currentLat     Float?
+  currentLng     Float?
+
+  orders   Order[]
+  walletTx WalletTransaction[]
+}
+
+model Service {
+  id        String   @id @default(uuid())
+  name      String
+  category  String
+  basePrice Decimal
+  createdAt DateTime @default(now())
+
+  orders Order[]
+}
+
+model Order {
+  id         String          @id @default(uuid())
+  customerId String
+  customer   CustomerProfile @relation(fields: [customerId], references: [id])
+  workerId   String?
+  worker     WorkerProfile?  @relation(fields: [workerId], references: [id])
+  serviceId  String
+  service    Service         @relation(fields: [serviceId], references: [id])
+
+  status          OrderStatus @default(PENDING)
+  pickupLat       Float
+  pickupLng       Float
+  beforeImageUrl  String?
+  afterImageUrl   String?
+  aiDetectedIssue String?
+  price           Decimal?
+  commissionPct   Float       @default(0.15)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  statusHistory OrderStatusHistory[]
+  payment       Payment?
+  review        Review?
+  dispute       Dispute?
+}
+
+model OrderStatusHistory {
+  id        String      @id @default(uuid())
+  orderId   String
+  order     Order       @relation(fields: [orderId], references: [id])
+  status    OrderStatus
+  changedAt DateTime    @default(now())
+}
+
+model Payment {
+  id               String    @id @default(uuid())
+  orderId          String    @unique
+  order            Order     @relation(fields: [orderId], references: [id])
+  amount           Decimal
+  commissionAmount Decimal
+  workerPayout     Decimal
+  method           String
+  status           String
+  paidAt           DateTime?
+}
+
+model WalletTransaction {
+  id        String        @id @default(uuid())
+  workerId  String
+  worker    WorkerProfile @relation(fields: [workerId], references: [id])
+  orderId   String?
+  amount    Decimal
+  type      String // CREDIT | WITHDRAW
+  createdAt DateTime      @default(now())
+}
+
+model Review {
+  id      String  @id @default(uuid())
+  orderId String  @unique
+  order   Order   @relation(fields: [orderId], references: [id])
+  rating  Int
+  comment String?
+}
+
+model Dispute {
+  id         String   @id @default(uuid())
+  orderId    String   @unique
+  order      Order    @relation(fields: [orderId], references: [id])
+  reason     String
+  status     String   @default("OPEN")
+  resolvedBy String?
+  createdAt  DateTime @default(now())
+}
