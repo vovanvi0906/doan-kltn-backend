@@ -1,98 +1,870 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+Backend hệ thống Dịch vụ Gia đình On-Demand tích hợp AI
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+Backend cho đề tài khóa luận tốt nghiệp:
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+Xây dựng hệ thống phần mềm kết nối dịch vụ gia đình theo mô hình On-Demand tích hợp xử lý ảnh và AI
 
-## Description
+Hệ thống đóng vai trò nền tảng trung gian kết nối Customer có nhu cầu sử dụng dịch vụ gia đình với Worker/Thợ kỹ thuật phù hợp theo vị trí và kỹ năng. Backend chịu trách nhiệm xử lý nghiệp vụ đặt dịch vụ, phân bổ đơn, theo dõi thời gian thực, tích hợp AI/xử lý ảnh, thanh toán, hoa hồng, ví người lao động và các chức năng quản trị.
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+1. Trạng thái hiện tại
 
-## Project setup
+Project hiện đang ở giai đoạn khởi tạo Backend JavaScript.
 
-```bash
-$ npm install
-```
+Khởi tạo NestJS Backend.
 
-## Compile and run the project
+Chuyển source khởi động sang JavaScript.
 
-```bash
-# development
-$ npm run start
+Sử dụng Babel để chạy NestJS với JavaScript.
 
-# watch mode
-$ npm run start:dev
+Sử dụng Nodemon cho môi trường development.
 
-# production mode
-$ npm run start:prod
-```
+Tổ chức khung thư mục theo hướng Feature-Based Modular Monolith.
 
-## Run tests
+Backend boot thành công.
 
-```bash
-# unit tests
-$ npm run test
+Health Check hoạt động tại GET /api/health.
 
-# e2e tests
-$ npm run test:e2e
+Kết nối Prisma + PostgreSQL/PostGIS.
 
-# test coverage
-$ npm run test:cov
-```
+Kết nối Redis.
 
-## Deployment
+Authentication / Authorization.
 
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
+Customer / Worker / Service.
 
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
+Order State Machine.
 
-```bash
-$ npm install -g @nestjs/mau
-$ mau deploy
-```
+Matching Worker bằng PostGIS.
 
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
+Socket.IO / GPS Tracking.
 
-## Resources
+Upload ảnh / Object Storage.
 
-Check out a few resources that may come in handy when working with NestJS:
+Tích hợp FastAPI AI Service.
 
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
+Payment / Commission / Wallet.
 
-## Support
+Review / Admin.
 
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
+Testing / Docker / Deploy.
 
-## Stay in touch
+Lưu ý: các module nghiệp vụ trong src/modules/ hiện chủ yếu là khung kiến trúc. Không nên hiểu danh sách module là các chức năng đã hoàn thiện.
 
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
+2. Mục tiêu hệ thống
 
-## License
+Backend hướng tới hỗ trợ luồng nghiệp vụ chính:
 
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+Customer chọn dịch vụ
+        ↓
+Tạo Order
+        ↓
+Hệ thống tìm Worker phù hợp gần nhất
+        ↓
+Phát Order cho Worker
+        ↓
+Worker Accept
+        ↓
+Worker di chuyển đến địa điểm
+        ↓
+Face Verification
+        ↓
+Upload ảnh Before
+        ↓
+Bắt đầu công việc
+        ↓
+Upload ảnh After
+        ↓
+AI hỗ trợ phân tích Before / After
+        ↓
+Customer nghiệm thu
+        ↓
+Thanh toán
+        ↓
+Tính Commission
+        ↓
+Ghi nhận thu nhập vào Wallet Worker
+        ↓
+Customer đánh giá Worker
+
+Ba nhóm người dùng chính:
+
+Customer: tìm và đặt dịch vụ, theo dõi Worker, thanh toán, nghiệm thu, đánh giá.
+
+Worker: đăng ký hồ sơ/kỹ năng, nhận hoặc từ chối Order, cập nhật vị trí, thực hiện công việc, quản lý thu nhập.
+
+Admin: duyệt Worker, quản lý người dùng, dịch vụ, Order, giao dịch, hoa hồng và thống kê hệ thống.
+
+3. Kiến trúc tổng thể
+
+Backend được định hướng theo Modular Monolith. Các nghiệp vụ là module trong cùng một NestJS application, không tách thành nhiều network microservice riêng.
+
+FastAPI AI Service được tách độc lập vì sử dụng Python và các thư viện AI/xử lý ảnh.
+
+flowchart TB
+    C[Customer Mobile App]
+    W[Worker Mobile App]
+    A[Web Admin]
+
+    N[Nginx]
+    B[NestJS Backend - JavaScript]
+    S[Socket.IO Gateway]
+
+    DB[(PostgreSQL + PostGIS)]
+    R[(Redis)]
+    ST[Object Storage / AWS S3]
+    P[Payment Gateway / Sandbox]
+
+    AI[FastAPI AI Service]
+    Y[YOLOv8]
+    D[DeepFace]
+    O[OpenCV]
+
+    C --> N
+    W --> N
+    A --> N
+
+    N --> B
+    N --> S
+
+    B --> DB
+    B --> R
+    S --> R
+    S --> B
+
+    B --> ST
+    B --> P
+    B --> AI
+
+    AI --> ST
+    AI --> Y
+    AI --> D
+    AI --> O
+
+4. Công nghệ sử dụng
+
+Backend Core
+
+Công nghệ
+
+Vai trò
+
+Node.js
+
+JavaScript runtime
+
+NestJS
+
+Backend framework
+
+JavaScript
+
+Ngôn ngữ chính của Backend
+
+Babel
+
+Hỗ trợ chạy NestJS JavaScript/decorator
+
+Nodemon
+
+Tự động restart server khi development
+
+Prisma
+
+ORM truy cập database
+
+Database & Cache
+
+Công nghệ
+
+Vai trò
+
+PostgreSQL
+
+Database chính
+
+PostGIS
+
+Tính khoảng cách GPS và tìm Worker gần nhất
+
+Redis
+
+Cache, vị trí realtime, Socket mapping, dispatch context, queue
+
+Authentication
+
+Công nghệ
+
+Vai trò
+
+Passport.js
+
+Xác thực
+
+JWT
+
+Access token / authentication
+
+bcrypt
+
+Băm mật khẩu
+
+Real-time
+
+Công nghệ
+
+Vai trò
+
+Socket.IO
+
+Order notification, GPS tracking, realtime status, chat cơ bản
+
+AI / Xử lý ảnh
+
+Công nghệ
+
+Vai trò
+
+Python
+
+Ngôn ngữ cho AI Service
+
+FastAPI
+
+API cho AI Service
+
+YOLOv8
+
+Phân tích/phân loại ảnh sự cố
+
+DeepFace
+
+Face Verification
+
+OpenCV
+
+Tiền xử lý ảnh và hỗ trợ Before/After analysis
+
+Pillow
+
+Xử lý ảnh cơ bản
+
+AI Service được định hướng tự host. Kết quả AI là dữ liệu hỗ trợ nghiệp vụ, không mặc định là quyết định nghiệp vụ cuối cùng.
+
+Storage / Queue / External Integration
+
+Công nghệ
+
+Vai trò
+
+AWS S3 / Object Storage
+
+Lưu ảnh sự cố, ảnh khuôn mặt, Before/After
+
+Multer
+
+Nhận file upload
+
+Axios / NestJS HttpModule
+
+NestJS gọi FastAPI
+
+BullMQ
+
+Job queue xử lý AI bất đồng bộ
+
+VNPay / Momo / VietQR sandbox
+
+Thanh toán thử nghiệm, tùy lựa chọn cuối cùng
+
+Testing / Documentation / Deployment
+
+Công nghệ
+
+Vai trò
+
+Jest
+
+Unit/Integration Test
+
+Postman
+
+API testing thủ công
+
+Swagger
+
+API documentation
+
+Docker
+
+Container hóa ứng dụng
+
+Docker Compose
+
+Môi trường development
+
+AWS EC2
+
+Deployment server dự kiến
+
+Nginx
+
+Reverse proxy
+
+PM2
+
+Quản lý Node.js process nếu sử dụng trong production
+
+5. Cấu trúc thư mục
+
+Project được tổ chức theo Feature-Based Modular Monolith.
+
+src/
+├── main.js
+├── app.module.js
+│
+├── health/
+│   ├── health.module.js
+│   └── health.controller.js
+│
+├── modules/
+│   ├── auth/
+│   ├── users/
+│   ├── customers/
+│   ├── workers/
+│   ├── services/
+│   ├── orders/
+│   ├── matching/
+│   ├── locations/
+│   ├── realtime/
+│   ├── images/
+│   ├── ai/
+│   ├── payments/
+│   ├── wallets/
+│   ├── reviews/
+│   ├── admin/
+│   └── configurations/
+│
+├── infrastructure/
+│   ├── database/
+│   ├── redis/
+│   ├── storage/
+│   └── external/
+│       ├── ai/
+│       └── payment/
+│
+├── common/
+│   ├── decorators/
+│   ├── guards/
+│   ├── filters/
+│   ├── interceptors/
+│   ├── pipes/
+│   ├── exceptions/
+│   ├── constants/
+│   └── utils/
+│
+└── config/
+
+Khi Prisma được hoàn thiện, database schema/migration được đặt ở root project:
+
+prisma/
+├── schema.prisma
+├── migrations/
+└── seed.js
+
+Quy ước module
+
+Khi triển khai một chức năng, code liên quan được đặt gần nhau trong cùng module.
+
+Ví dụ:
+
+src/modules/orders/
+├── orders.module.js
+├── orders.controller.js
+├── orders.service.js
+├── orders.repository.js
+├── order-workflow.service.js
+├── dto/
+├── constants/
+└── validators/
+
+Vai trò chính:
+
+Controller
+    ↓
+Nhận HTTP Request / gọi Service
+
+Service
+    ↓
+Xử lý business logic
+
+Repository
+    ↓
+Truy cập Prisma / Database
+
+DTO / Validator
+    ↓
+Kiểm tra dữ liệu đầu vào
+
+6. Nguyên tắc kiến trúc
+
+modules/
+
+Chứa nghiệp vụ của hệ thống:
+
+Auth
+
+User
+
+Customer
+
+Worker
+
+Service
+
+Order
+
+Matching
+
+Location
+
+Realtime
+
+Image
+
+AI Integration
+
+Payment
+
+Wallet
+
+Review
+
+Admin
+
+infrastructure/
+
+Chứa các thành phần kỹ thuật bên dưới nghiệp vụ:
+
+Prisma
+
+Redis
+
+Object Storage
+
+FastAPI HTTP client
+
+Payment Gateway client
+
+common/
+
+Chỉ chứa code thật sự dùng chung:
+
+Guards
+
+Decorators
+
+Exception Filters
+
+Interceptors
+
+Pipes
+
+Constants
+
+Utilities
+
+Không đưa business logic của Order, Worker, Payment hoặc AI vào common/.
+
+config/
+
+Tập trung cấu hình môi trường, hạn chế sử dụng process.env rải rác trong source code.
+
+7. Order là nghiệp vụ trung tâm
+
+Order là aggregate trung tâm của hệ thống. Các nghiệp vụ sau đều liên quan đến Order:
+
+Matching Worker.
+
+Assignment.
+
+GPS Tracking.
+
+Face Verification.
+
+Before/After Image.
+
+Payment.
+
+Commission.
+
+Wallet.
+
+Review.
+
+Order State Machine dự kiến:
+
+CREATED
+   ↓
+SEARCHING
+   ↓
+ASSIGNED
+   ↓
+WORKER_ARRIVING
+   ↓
+ARRIVED
+   ↓
+[Face Verification]
+   ↓
+IN_PROGRESS
+   ↓
+AWAITING_CONFIRMATION
+   ↓
+AWAITING_PAYMENT
+   ↓
+COMPLETED
+
+CANCELLED là trạng thái kết thúc phụ thuộc chính sách hủy được chốt sau.
+
+Face Verification không phải Order State mà là điều kiện kiểm tra trước transition:
+
+ARRIVED → IN_PROGRESS
+
+Khi triển khai, các transition trạng thái cần được kiểm tra ở Backend; client không được tự gửi một status tùy ý để thay đổi trạng thái Order.
+
+8. Luồng AI dự kiến
+
+Phân tích ảnh sự cố
+
+Customer Image
+    ↓
+NestJS Backend
+    ↓
+Object Storage
+    ↓
+FastAPI AI Service
+    ↓
+YOLOv8 / OpenCV
+    ↓
+Prediction
+    ↓
+Service Suggestion
+
+Face Verification
+
+Worker Camera
+     +
+Reference Face
+     ↓
+FastAPI
+     ↓
+DeepFace
+     ↓
+Verification Result
+     ↓
+NestJS
+     ↓
+Cho phép / từ chối Start Work
+
+Before / After Analysis
+
+Before Image + After Image
+           ↓
+       AI Service
+           ↓
+ Difference / Similarity Result
+           ↓
+ Hỗ trợ Customer nghiệm thu
+
+AI chỉ hỗ trợ đưa ra thông tin; quyết định nghiệp vụ cuối cùng vẫn do Backend và người dùng thực hiện theo quy trình hệ thống.
+
+9. Cài đặt project hiện tại
+
+Yêu cầu
+
+Node.js
+
+npm
+
+Project hiện đã được kiểm tra chạy thành công với Node.js v24.19.0 trên môi trường development hiện tại.
+
+Cài dependencies
+
+npm install
+
+Chạy Development Server
+
+npm run start:dev
+
+Script development hiện tại sử dụng Nodemon + Babel:
+
+nodemon --watch src --exec babel-node src/main.js
+
+Khi chạy thành công:
+
+Nest application successfully started
+Application is running on: http://localhost:3000/api
+
+10. Health Check
+
+Endpoint hiện đã hoạt động:
+
+GET /api/health
+
+URL local:
+
+http://localhost:3000/api/health
+
+Response mong đợi:
+
+{
+  "status": "ok"
+}
+
+Test bằng CMD/PowerShell:
+
+curl.exe http://localhost:3000/api/health
+
+11. Xử lý lỗi Port 3000 đang được sử dụng
+
+Nếu gặp:
+
+Error: listen EADDRINUSE: address already in use :::3000
+
+Kiểm tra process đang giữ port:
+
+netstat -ano | findstr :3000
+
+Kiểm tra PID:
+
+tasklist | findstr <PID>
+
+Nếu đó là Node server cũ, có thể tắt bằng:
+
+taskkill /PID <PID> /F
+
+Sau đó chạy lại:
+
+npm run start:dev
+
+12. Environment Variables
+
+Ở giai đoạn Health Check hiện tại, project chưa cần toàn bộ external service.
+
+Khi triển khai các module tiếp theo, cấu hình dự kiến sẽ được quản lý qua .env, ví dụ:
+
+PORT=3000
+
+# Database
+DATABASE_URL=
+
+# Redis
+REDIS_URL=
+
+# JWT
+JWT_SECRET=
+JWT_EXPIRES_IN=
+
+# AI Service
+AI_SERVICE_URL=
+
+# Object Storage
+AWS_REGION=
+AWS_S3_BUCKET=
+AWS_ACCESS_KEY_ID=
+AWS_SECRET_ACCESS_KEY=
+
+# Payment
+PAYMENT_PROVIDER=
+
+Tên biến môi trường có thể được điều chỉnh khi từng module được triển khai. Không commit secret thật lên Git.
+
+13. Roadmap Backend
+
+Thứ tự triển khai được ưu tiên theo dependency:
+
+Project bootstrap ✅
+
+Environment / Config
+
+Prisma + PostgreSQL
+
+PostGIS
+
+Redis
+
+Authentication + RBAC
+
+User / Customer / Worker
+
+Service Catalog
+
+Order + State Machine
+
+Matching Worker bằng PostGIS
+
+Socket.IO + GPS Tracking
+
+Image Upload + Object Storage
+
+FastAPI AI Integration
+
+Face Verification
+
+Before / After Analysis
+
+Payment Sandbox
+
+Commission + Wallet
+
+Review / Admin
+
+Testing
+
+Docker + Deploy
+
+14. Các nguyên tắc nghiệp vụ quan trọng
+
+PostgreSQL là Source of Truth
+
+PostgreSQL lưu dữ liệu nghiệp vụ lâu dài như:
+
+User.
+
+Worker.
+
+Order.
+
+Payment.
+
+Wallet.
+
+Review.
+
+AI result cần lưu.
+
+Transaction history.
+
+Redis phù hợp với dữ liệu ngắn hạn như:
+
+Latest Worker location.
+
+Socket mapping.
+
+Dispatch candidate context.
+
+Cache.
+
+BullMQ jobs.
+
+Worker Accept phải atomic
+
+Khi nhiều Worker cùng Accept một Order, Backend phải bảo đảm chỉ một Worker được gán thành công.
+
+Wallet phải có Transaction Ledger
+
+Không chỉ cập nhật wallet.balance. Mỗi lần cộng/trừ tiền cần có WalletTransaction để audit và chống xử lý trùng.
+
+Commission cần lưu snapshot
+
+Khi Payment thành công, tỷ lệ commission áp dụng cho giao dịch cần được lưu lại để Order cũ không bị thay đổi khi Admin chỉnh commission trong tương lai.
+
+Payment Callback phải Idempotent
+
+Một callback/webhook được gửi nhiều lần không được tạo nhiều WalletTransaction hoặc cộng tiền Worker nhiều lần.
+
+15. Testing dự kiến
+
+Các nhóm test chính:
+
+Unit Test.
+
+Integration Test.
+
+API Test.
+
+E2E Test.
+
+Realtime / Socket Test.
+
+Database Test.
+
+AI Integration Test.
+
+Basic Security Test.
+
+Deployment Smoke Test.
+
+Các case quan trọng cần ưu tiên:
+
+Hai Worker Accept cùng một Order.
+
+Payment webhook gửi lặp.
+
+Customer truy cập Order của Customer khác.
+
+Worker thao tác Order không được assign.
+
+Worker chưa được duyệt nhưng cố nhận Order.
+
+State transition không hợp lệ.
+
+FastAPI AI Service unavailable.
+
+Redis reconnect / Socket reconnect.
+
+16. Deployment dự kiến
+
+Customer / Worker / Admin
+          ↓
+        Nginx
+          ↓
+    NestJS Backend
+     ├── PostgreSQL + PostGIS
+     ├── Redis
+     ├── FastAPI AI Service
+     ├── Object Storage
+     └── Payment Sandbox
+
+Development dự kiến sử dụng Docker Compose. Production dự kiến triển khai trên AWS EC2 qua Nginx; database có thể chạy container hoặc dịch vụ managed tùy ngân sách và phương án triển khai cuối cùng.
+
+17. Tài liệu của đề tài
+
+Các tài liệu thiết kế liên quan gồm:
+
+Tài liệu xác định đề tài.
+
+Tài liệu yêu cầu phần mềm.
+
+Tài liệu phân tích và thiết kế hệ thống.
+
+Tài liệu thiết kế Backend.
+
+Tài liệu AI/Xử lý ảnh.
+
+Tài liệu kiểm thử.
+
+Tài liệu Deploy.
+
+18. Ghi chú phát triển
+
+Project đang được xây dựng theo nguyên tắc:
+
+Một task
+   ↓
+Một phạm vi rõ ràng
+   ↓
+Code
+   ↓
+Run
+   ↓
+Test
+   ↓
+PASS
+   ↓
+Mới chuyển sang task tiếp theo
+
+Không triển khai hàng loạt module cùng lúc khi nền tảng phụ thuộc phía dưới chưa hoạt động ổn định.
+
+License
+
+Đây là project phục vụ đồ án khóa luận tốt nghiệp. Thông tin license/phạm vi sử dụng sẽ được cập nhật sau.
