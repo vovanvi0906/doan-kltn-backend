@@ -28,16 +28,9 @@ export class UsersRepository {
     });
   }
 
-  async create(data) {
-    const { role, ...rest } = data;
+  async create(userData) {
     return this.prisma.user.create({
-      data: {
-        ...rest,
-        role: role || 'CUSTOMER',
-        ...(role === 'WORKER'
-          ? { workerProfile: { create: {} } }
-          : { customerProfile: { create: {} } }),
-      },
+      data: userData,
       include: {
         customerProfile: true,
         workerProfile: true,
@@ -45,35 +38,13 @@ export class UsersRepository {
     });
   }
 
-  async update(id, data) {
+  async updateStatus(id, status) {
     return this.prisma.user.update({
       where: { id },
-      data,
+      data: { status },
       include: {
         customerProfile: true,
         workerProfile: true,
-      },
-    });
-  }
-
-  async updateWorkerLocation(userId, lat, lng) {
-    return this.prisma.workerProfile.update({
-      where: { userId },
-      data: {
-        currentLat: lat,
-        currentLng: lng,
-      },
-    });
-  }
-
-  async findNearbyWorkers(lat, lng, radiusKm = 10) {
-    return this.prisma.workerProfile.findMany({
-      where: {
-        currentLat: { not: null },
-        currentLng: { not: null },
-      },
-      include: {
-        user: true,
       },
     });
   }
