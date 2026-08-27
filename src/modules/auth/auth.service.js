@@ -3,52 +3,99 @@ import {
   Dependencies,
   BadRequestException,
   UnauthorizedException,
+  ForbiddenException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
-import { UsersRepository } from '../users/users.repository';
+import { UsersService } from '../users/users.service';
 
 @Injectable()
-@Dependencies(UsersRepository, JwtService)
+@Dependencies(UsersService, JwtService)
 export class AuthService {
-  constructor(usersRepository, jwtService) {
-    this.usersRepository = usersRepository;
+  constructor(usersService, jwtService) {
+    this.usersService = usersService;
     this.jwtService = jwtService;
   }
 
-  async register(registerDto) {
-    const { email, password, phone, role } = registerDto;
+  async registerCustomer(data) {
+    const { email, password, phone, fullName, avatarUrl } = data;
 
-    const existingUser = await this.usersRepository.findByEmail(email);
+    const existingUser = await this.usersService.findByEmail(email);
     if (existingUser) {
-      throw new BadRequestException('Email đã được sử dụng');
+      throw new BadRequestException('Email đã tồn tại trong hệ thống');
     }
 
-    const salt = await bcrypt.genSalt(10);
-    const passwordHash = await bcrypt.hash(password, salt);
+    const passwordHash = await bcrypt.hash(password, 10);
 
-    const user = await this.usersRepository.create({
+    const user = await this.usersService.create({
       email,
       passwordHash,
-      phone,
-      role: role || 'CUSTOMER',
+      phone: phone || null,
+      role: 'CUSTOMER',
+      status: 'ACTIVE',
+      customerProfile: {
+        create: {
+          fullName: fullName || null,
+          avatarUrl: avatarUrl || null,
+        },
+      },
     });
 
-    const token = this.generateToken(user);
-    const { passwordHash: _, ...userInfo } = user;
+    const { passwordHash: _, ...sanitizedUser } = user;
+    const token = this.jwtService.sign({ sub: user.id, role: user.role });
 
     return {
-      user: userInfo,
+      message: 'Đăng ký tài khoản khách hàng thành công',
+      user: sanitizedUser,
       accessToken: token,
     };
   }
 
-  async login(loginDto) {
-    const { email, password } = loginDto;
+  async registerWorker(data) {
+    const { email, password, phone, fullName, avatarUrl, skills, bio } = data;
 
-    const user = await this.usersRepository.findByEmail(email);
+    const existingUser = await this.usersService.findByEmail(email);
+    if (existingUser) {
+      throw new BadRequestException('Email đã tồn tại trong hệ thống');
+    }
+
+    const passwordHash = await bcrypt.hash(password, 10);
+
+    const user = await this.usersService.create({
+      email,
+      passwordHash,
+      phone: phone || null,
+      role: 'WORKER',
+      status: 'ACTIVE',
+      workerProfile: {
+        create: {
+          fullName: fullName || null,
+          avatarUrl: avatarUrl || null,
+          skills: skills || [],
+          bio: bio || null,
+          approvalStatus: 'DRAFT',
+        },
+      },
+    });
+
+    const { passwordHash: _, ...sanitizedUser } = user;
+    const token = this.jwtService.sign({ sub: user.id, role: user.role });
+
+    return {
+      message: 'Đăng ký tài khoản thợ thành công',
+      user: sanitizedUser,
+      accessToken: token,
+    };
+  }
+
+  async login(email, password) {
+    const user = await this.usersService.findByEmail(email);
     if (!user) {
       throw new UnauthorizedException('Email hoặc mật khẩu không chính xác');
+    }
+
+    if (user.status === 'BLOCKED') {
+      throw new ForbiddenException('Tài khoản của bạn đã bị khóa. Vui lòng liên hệ Admin');
     }
 
     const isMatch = await bcrypt.compare(password, user.passwordHash);
@@ -56,21 +103,13 @@ export class AuthService {
       throw new UnauthorizedException('Email hoặc mật khẩu không chính xác');
     }
 
-    const token = this.generateToken(user);
-    const { passwordHash: _, ...userInfo } = user;
+    const token = this.jwtService.sign({ sub: user.id, role: user.role });
+    const { passwordHash: _, ...sanitizedUser } = user;
 
     return {
-      user: userInfo,
+      message: 'Đăng nhập thành công',
+      user: sanitizedUser,
       accessToken: token,
     };
-  }
-
-  generateToken(user) {
-    const payload = {
-      sub: user.id,
-      email: user.email,
-      role: user.role,
-    };
-    return this.jwtService.sign(payload);
   }
 }

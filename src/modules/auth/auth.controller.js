@@ -1,8 +1,6 @@
-import { Controller, Post, Body, Dependencies } from '@nestjs/common';
+import { Controller, Post, Bind, Body, Dependencies } from '@nestjs/common';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
-import { RegisterDto } from './dto/register.dto';
-import { LoginDto } from './dto/login.dto';
 
 @ApiTags('auth')
 @Controller('auth')
@@ -12,15 +10,24 @@ export class AuthController {
     this.authService = authService;
   }
 
-  @Post('register')
-  @ApiOperation({ summary: 'Đăng ký tài khoản mới (Customer / Worker)' })
-  async register(@Body() registerDto) {
-    return this.authService.register(registerDto);
+  @Post('register/customer')
+  @ApiOperation({ summary: 'Đăng ký tài khoản khách hàng (Customer)' })
+  @Bind(Body())
+  async registerCustomer(body) {
+    return this.authService.registerCustomer(body);
+  }
+
+  @Post('register/worker')
+  @ApiOperation({ summary: 'Đăng ký tài khoản thợ (Worker)' })
+  @Bind(Body())
+  async registerWorker(body) {
+    return this.authService.registerWorker(body);
   }
 
   @Post('login')
   @ApiOperation({ summary: 'Đăng nhập hệ thống' })
-  async login(@Body() loginDto) {
-    return this.authService.login(loginDto);
+  @Bind(Body())
+  async login(body) {
+    return this.authService.login(body.email, body.password);
   }
 }
