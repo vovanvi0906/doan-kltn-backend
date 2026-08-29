@@ -6,7 +6,7 @@ export class OrderTransitionValidator {
     const allowedTransitions = VALID_STATUS_TRANSITIONS[currentStatus] || [];
     if (!allowedTransitions.includes(nextStatus)) {
       throw new BadRequestException(
-        `Không thể chuyển trạng thái đơn từ "${currentStatus}" sang "${nextStatus}". Trạng thái hợp lệ tiếp theo: [${allowedTransitions.join(
+        `Không thể chuyển trạng thái đơn hàng từ "${currentStatus}" sang "${nextStatus}". Các trạng thái hợp lệ tiếp theo: [${allowedTransitions.join(
           ', ',
         )}]`,
       );

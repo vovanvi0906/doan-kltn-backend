@@ -1,21 +1,23 @@
-import { IsNotEmpty, IsNumber, IsOptional, IsString } from 'class-validator';
+import { IsNotEmpty, IsOptional, IsString, IsDateString } from 'class-validator';
 
 export class CreateOrderDto {
   @IsString()
   @IsNotEmpty({ message: 'serviceId không được để trống' })
   serviceId;
 
-  @IsNumber({}, { message: 'pickupLat phải là số' })
-  pickupLat;
-
-  @IsNumber({}, { message: 'pickupLng phải là số' })
-  pickupLng;
+  @IsString()
+  @IsNotEmpty({ message: 'addressId không được để trống' })
+  addressId;
 
   @IsOptional()
   @IsString()
-  beforeImageUrl;
+  description;
 
   @IsOptional()
-  @IsNumber()
-  price;
+  @IsString()
+  note;
+
+  @IsOptional()
+  @IsDateString({}, { message: 'scheduledAt phải là định dạng ISO date string' })
+  scheduledAt;
 }

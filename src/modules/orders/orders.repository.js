@@ -12,13 +12,44 @@ export class OrdersRepository {
     return this.prisma.order.findUnique({
       where: { id },
       include: {
-        customer: { include: { user: true } },
-        worker: { include: { user: true } },
-        service: true,
-        statusHistory: { orderBy: { changedAt: 'asc' } },
+        customer: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                email: true,
+                phone: true,
+                role: true,
+                status: true,
+              },
+            },
+          },
+        },
+        worker: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                email: true,
+                phone: true,
+                role: true,
+                status: true,
+              },
+            },
+          },
+        },
+        service: {
+          include: {
+            category: true,
+          },
+        },
+        address: true,
+        statusHistory: {
+          orderBy: { createdAt: 'asc' },
+        },
+        images: true,
         payment: true,
         review: true,
-        dispute: true,
       },
     });
   }
@@ -27,8 +58,19 @@ export class OrdersRepository {
     return this.prisma.order.findMany({
       where: { customerId },
       include: {
-        worker: { include: { user: true } },
+        worker: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                email: true,
+                phone: true,
+              },
+            },
+          },
+        },
         service: true,
+        address: true,
       },
       orderBy: { createdAt: 'desc' },
     });
@@ -38,49 +80,119 @@ export class OrdersRepository {
     return this.prisma.order.findMany({
       where: { workerId },
       include: {
-        customer: { include: { user: true } },
+        customer: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                email: true,
+                phone: true,
+              },
+            },
+          },
+        },
         service: true,
+        address: true,
       },
       orderBy: { createdAt: 'desc' },
     });
   }
 
-  async create(data) {
-    return this.prisma.order.create({
-      data: {
-        ...data,
-        statusHistory: {
-          create: {
-            status: data.status || 'PENDING',
+  async findAll() {
+    return this.prisma.order.findMany({
+      include: {
+        customer: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                email: true,
+                phone: true,
+              },
+            },
           },
         },
-      },
-      include: {
-        customer: true,
+        worker: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                email: true,
+                phone: true,
+              },
+            },
+          },
+        },
         service: true,
+        address: true,
       },
+      orderBy: { createdAt: 'desc' },
     });
   }
 
-  async updateStatus(orderId, newStatus, additionalData = {}) {
+  async findCurrentOrderForWorker(workerId) {
+    return this.prisma.order.findFirst({
+      where: {
+        workerId,
+        status: {
+          in: [
+            'ASSIGNED',
+            'WORKER_ARRIVING',
+            'ARRIVED',
+            'IN_PROGRESS',
+            'AWAITING_CONFIRMATION',
+            'AWAITING_PAYMENT',
+          ],
+        },
+      },
+      include: {
+        customer: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                email: true,
+                phone: true,
+              },
+            },
+          },
+        },
+        service: {
+          include: {
+            category: true,
+          },
+        },
+        address: true,
+        statusHistory: {
+          orderBy: { createdAt: 'asc' },
+        },
+        images: true,
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  async create(orderData, changedByUserId = null) {
+    const { initialStatus = 'SEARCHING', historyNote = 'Khởi tạo đơn hàng mới', ...restData } = orderData;
+
     return this.prisma.$transaction(async (tx) => {
-      const order = await tx.order.update({
-        where: { id: orderId },
+      const order = await tx.order.create({
         data: {
-          status: newStatus,
-          ...additionalData,
+          ...restData,
+          status: initialStatus,
+          statusHistory: {
+            create: {
+              status: initialStatus,
+              note: historyNote,
+              changedBy: changedByUserId,
+            },
+          },
         },
         include: {
           customer: true,
-          worker: true,
           service: true,
-        },
-      });
-
-      await tx.orderStatusHistory.create({
-        data: {
-          orderId,
-          status: newStatus,
+          address: true,
+          statusHistory: true,
         },
       });
 
@@ -88,7 +200,55 @@ export class OrdersRepository {
     });
   }
 
-  async assignWorker(orderId, workerId) {
-    return this.updateStatus(orderId, 'MATCHED', { workerId });
+  async updateStatusWithHistory(orderId, newStatus, { updateData = {}, note = null, changedByUserId = null } = {}) {
+    return this.prisma.$transaction(async (tx) => {
+      const order = await tx.order.update({
+        where: { id: orderId },
+        data: {
+          status: newStatus,
+          ...updateData,
+        },
+        include: {
+          customer: {
+            include: {
+              user: {
+                select: {
+                  id: true,
+                  email: true,
+                  phone: true,
+                },
+              },
+            },
+          },
+          worker: {
+            include: {
+              user: {
+                select: {
+                  id: true,
+                  email: true,
+                  phone: true,
+                },
+              },
+            },
+          },
+          service: true,
+          address: true,
+          statusHistory: {
+            orderBy: { createdAt: 'asc' },
+          },
+        },
+      });
+
+      await tx.orderStatusHistory.create({
+        data: {
+          orderId,
+          status: newStatus,
+          note: note || `Chuyển trạng thái sang ${newStatus}`,
+          changedBy: changedByUserId,
+        },
+      });
+
+      return order;
+    });
   }
 }
