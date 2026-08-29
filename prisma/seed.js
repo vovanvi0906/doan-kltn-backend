@@ -6,25 +6,29 @@ const prisma = new PrismaClient();
 async function main() {
   console.log('--- Starting Seed Data ---');
 
-  // 1. Seed Admin User (UserRole.ADMIN)
+  // 1. Seed Super Admin User (Idempotent)
   const adminEmail = 'admin@homeservice.com';
-  const hashedPassword = await bcrypt.hash('Admin@123', 10);
+  const existingAdmin = await prisma.user.findUnique({
+    where: { email: adminEmail },
+  });
 
+  const hashedPassword = await bcrypt.hash('Admin@123', 10);
   const admin = await prisma.user.upsert({
     where: { email: adminEmail },
-    update: {
-      role: UserRole.ADMIN,
-      status: UserStatus.ACTIVE,
-    },
+    update: {},
     create: {
       email: adminEmail,
       passwordHash: hashedPassword,
-      phone: '0901234567',
       role: UserRole.ADMIN,
       status: UserStatus.ACTIVE,
     },
   });
-  console.log(`✓ Admin user seeded: ${admin.email} (ID: ${admin.id})`);
+
+  if (existingAdmin) {
+    console.log(`Admin already exists: ${admin.email} (ID: ${admin.id})`);
+  } else {
+    console.log(`Admin created: ${admin.email} (ID: ${admin.id})`);
+  }
 
   // 2. Seed 5 Service Categories
   const categoriesData = [
