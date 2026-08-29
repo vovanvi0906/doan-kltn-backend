@@ -1,6 +1,6 @@
 @echo off
 echo ==============================================
-echo KHOI DONG HE THONG BACKEND (AUTO SEED)
+echo KHOI DONG HE THONG BACKEND (AUTO SEED + STUDIO)
 echo ==============================================
 
 echo 1. Kiem tra va bat Docker Database...
@@ -15,5 +15,8 @@ call npx prisma migrate dev
 echo 4. Kiem tra va Tao Super Admin...
 call npx prisma db seed
 
-echo 5. Khoi dong NestJS Server...
+echo 5. Mo Prisma Studio (Quan ly Database)...
+start npx prisma studio
+
+echo 6. Khoi dong NestJS Server...
 call npm run start:dev
