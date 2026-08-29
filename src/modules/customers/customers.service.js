@@ -1,4 +1,9 @@
-import { Injectable, Dependencies, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  Dependencies,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { PrismaService } from '../../infrastructure/database/prisma.service';
 
 @Injectable()
@@ -97,8 +102,24 @@ export class CustomersService {
       city,
       latitude,
       longitude,
+      lat,
+      lng,
       isDefault,
     } = createAddressDto;
+
+    const rawLat = latitude !== undefined ? latitude : lat;
+    const rawLng = longitude !== undefined ? longitude : lng;
+
+    const parsedLat =
+      rawLat !== undefined && rawLat !== null ? parseFloat(rawLat) : NaN;
+    const parsedLng =
+      rawLng !== undefined && rawLng !== null ? parseFloat(rawLng) : NaN;
+
+    if (isNaN(parsedLat) || isNaN(parsedLng)) {
+      throw new BadRequestException(
+        'Tọa độ (latitude/lat, longitude/lng) không hợp lệ',
+      );
+    }
 
     const existingCount = await this.prisma.address.count({
       where: { customerId: customerProfile.id },
@@ -116,14 +137,16 @@ export class CustomersService {
 
     return this.prisma.address.create({
       data: {
-        customerId: customerProfile.id,
+        customer: {
+          connect: { id: customerProfile.id },
+        },
         title: title || null,
         street,
         ward: ward || null,
         district: district || null,
         city: city || null,
-        latitude: parseFloat(latitude),
-        longitude: parseFloat(longitude),
+        latitude: parsedLat,
+        longitude: parsedLng,
         isDefault: shouldBeDefault,
       },
     });
@@ -159,8 +182,29 @@ export class CustomersService {
       city,
       latitude,
       longitude,
+      lat,
+      lng,
       isDefault,
     } = updateAddressDto;
+
+    const rawLat = latitude !== undefined ? latitude : lat;
+    const rawLng = longitude !== undefined ? longitude : lng;
+
+    let parsedLat;
+    if (rawLat !== undefined && rawLat !== null) {
+      parsedLat = parseFloat(rawLat);
+      if (isNaN(parsedLat)) {
+        throw new BadRequestException('Tọa độ latitude không hợp lệ');
+      }
+    }
+
+    let parsedLng;
+    if (rawLng !== undefined && rawLng !== null) {
+      parsedLng = parseFloat(rawLng);
+      if (isNaN(parsedLng)) {
+        throw new BadRequestException('Tọa độ longitude không hợp lệ');
+      }
+    }
 
     if (isDefault === true) {
       await this.prisma.address.updateMany({
@@ -180,8 +224,8 @@ export class CustomersService {
         ...(ward !== undefined && { ward }),
         ...(district !== undefined && { district }),
         ...(city !== undefined && { city }),
-        ...(latitude !== undefined && { latitude: parseFloat(latitude) }),
-        ...(longitude !== undefined && { longitude: parseFloat(longitude) }),
+        ...(parsedLat !== undefined && { latitude: parsedLat }),
+        ...(parsedLng !== undefined && { longitude: parsedLng }),
         ...(isDefault !== undefined && { isDefault }),
       },
     });
