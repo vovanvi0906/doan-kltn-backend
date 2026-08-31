@@ -3,7 +3,9 @@ import {
   Dependencies,
   NotFoundException,
   BadRequestException,
+  ConflictException,
 } from '@nestjs/common';
+import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../../infrastructure/database/prisma.service';
 
 @Injectable()
@@ -11,6 +13,413 @@ import { PrismaService } from '../../infrastructure/database/prisma.service';
 export class AdminService {
   constructor(prisma) {
     this.prisma = prisma;
+  }
+
+  // ==========================================
+  // HELPER: FORMAT USER RESPONSE
+  // ==========================================
+  _formatUserResponse(u) {
+    const isWorker = u.role === 'WORKER';
+    const profile = isWorker ? u.workerProfile : u.customerProfile;
+
+    return {
+      id: u.id,
+      email: u.email,
+      phone: u.phone,
+      role: u.role,
+      status: u.status,
+      fullName:
+        profile?.fullName ||
+        u.customerProfile?.fullName ||
+        u.workerProfile?.fullName ||
+        '',
+      avatarUrl: profile?.avatarUrl || null,
+      approvalStatus: u.workerProfile?.approvalStatus || null,
+      bio: u.workerProfile?.bio || null,
+      cccdNumber: u.workerProfile?.idCardNumber || null,
+      skills: u.workerProfile?.skills || [],
+      createdAt: u.createdAt,
+      updatedAt: u.updatedAt,
+    };
+  }
+
+  // ==========================================
+  // USER MANAGEMENT (CRUD)
+  // ==========================================
+
+  async getUsers(query = {}) {
+    const { role, status, search } = query;
+    const page = Math.max(1, parseInt(query.page, 10) || 1);
+    const limit = Math.max(1, parseInt(query.limit, 10) || 10);
+
+    const where = {};
+
+    // Filter by Role
+    if (role && role !== 'ALL') {
+      where.role = role;
+    }
+
+    // Filter by Status (handles User status & Worker approval status)
+    if (status && status !== 'ALL') {
+      if (['ACTIVE', 'BLOCKED'].includes(status)) {
+        where.status = status;
+      } else if (['PENDING', 'APPROVED', 'REJECTED', 'DRAFT'].includes(status)) {
+        where.role = 'WORKER';
+        where.workerProfile = { approvalStatus: status };
+      }
+    }
+
+    // Search query (fullName, email, phone)
+    if (search && typeof search === 'string' && search.trim()) {
+      const q = search.trim();
+      where.OR = [
+        { email: { contains: q, mode: 'insensitive' } },
+        { phone: { contains: q, mode: 'insensitive' } },
+        { customerProfile: { fullName: { contains: q, mode: 'insensitive' } } },
+        { workerProfile: { fullName: { contains: q, mode: 'insensitive' } } },
+      ];
+    }
+
+    const total = await this.prisma.user.count({ where });
+
+    const users = await this.prisma.user.findMany({
+      where,
+      include: {
+        customerProfile: true,
+        workerProfile: true,
+      },
+      orderBy: { createdAt: 'desc' },
+      skip: (page - 1) * limit,
+      take: limit,
+    });
+
+    return {
+      data: users.map((u) => this._formatUserResponse(u)),
+      pagination: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit) || 1,
+      },
+    };
+  }
+
+  async getUserById(id) {
+    const user = await this.prisma.user.findUnique({
+      where: { id },
+      include: {
+        customerProfile: true,
+        workerProfile: true,
+      },
+    });
+
+    if (!user) {
+      throw new NotFoundException('Không tìm thấy người dùng');
+    }
+
+    return this._formatUserResponse(user);
+  }
+
+  async createUser(dto) {
+    const {
+      email,
+      password,
+      fullName,
+      phone,
+      role = 'CUSTOMER',
+      status = 'ACTIVE',
+      bio,
+      cccdNumber,
+      avatarUrl,
+      skills,
+    } = dto;
+
+    // Check duplicate email
+    const existingEmail = await this.prisma.user.findUnique({
+      where: { email },
+    });
+    if (existingEmail) {
+      throw new ConflictException('Email đã tồn tại trong hệ thống');
+    }
+
+    // Check duplicate phone
+    if (phone) {
+      const existingPhone = await this.prisma.user.findUnique({
+        where: { phone },
+      });
+      if (existingPhone) {
+        throw new ConflictException('Số điện thoại đã tồn tại trong hệ thống');
+      }
+    }
+
+    const passwordHash = await bcrypt.hash(password, 10);
+
+    const user = await this.prisma.user.create({
+      data: {
+        email,
+        passwordHash,
+        phone: phone || null,
+        role: role || 'CUSTOMER',
+        status: status || 'ACTIVE',
+        ...(role === 'WORKER'
+          ? {
+              workerProfile: {
+                create: {
+                  fullName: fullName || null,
+                  avatarUrl: avatarUrl || null,
+                  idCardNumber: cccdNumber || null,
+                  bio: bio || null,
+                  skills: Array.isArray(skills)
+                    ? skills
+                    : skills
+                    ? [skills]
+                    : [],
+                  approvalStatus: 'APPROVED',
+                },
+              },
+            }
+          : {
+              customerProfile: {
+                create: {
+                  fullName: fullName || null,
+                  avatarUrl: avatarUrl || null,
+                },
+              },
+            }),
+      },
+      include: {
+        customerProfile: true,
+        workerProfile: true,
+      },
+    });
+
+    return this._formatUserResponse(user);
+  }
+
+  async updateUser(id, dto) {
+    const existingUser = await this.prisma.user.findUnique({
+      where: { id },
+      include: {
+        customerProfile: true,
+        workerProfile: true,
+      },
+    });
+
+    if (!existingUser) {
+      throw new NotFoundException('Không tìm thấy người dùng');
+    }
+
+    // Check duplicate email if changed
+    if (dto.email && dto.email !== existingUser.email) {
+      const emailConflict = await this.prisma.user.findUnique({
+        where: { email: dto.email },
+      });
+      if (emailConflict) {
+        throw new ConflictException('Email đã tồn tại trong hệ thống');
+      }
+    }
+
+    // Check duplicate phone if changed
+    if (dto.phone && dto.phone !== existingUser.phone) {
+      const phoneConflict = await this.prisma.user.findUnique({
+        where: { phone: dto.phone },
+      });
+      if (phoneConflict) {
+        throw new ConflictException('Số điện thoại đã tồn tại trong hệ thống');
+      }
+    }
+
+    const userUpdateData = {};
+    if (dto.email !== undefined) userUpdateData.email = dto.email;
+    if (dto.phone !== undefined) userUpdateData.phone = dto.phone || null;
+    if (dto.status !== undefined) userUpdateData.status = dto.status;
+    if (dto.role !== undefined) userUpdateData.role = dto.role;
+    if (dto.password) {
+      userUpdateData.passwordHash = await bcrypt.hash(dto.password, 10);
+    }
+
+    // Update Profile
+    const isWorker = (dto.role || existingUser.role) === 'WORKER';
+
+    if (isWorker) {
+      if (existingUser.workerProfile) {
+        await this.prisma.workerProfile.update({
+          where: { userId: id },
+          data: {
+            ...(dto.fullName !== undefined && { fullName: dto.fullName }),
+            ...(dto.bio !== undefined && { bio: dto.bio }),
+            ...(dto.cccdNumber !== undefined && { idCardNumber: dto.cccdNumber }),
+            ...(dto.avatarUrl !== undefined && { avatarUrl: dto.avatarUrl }),
+            ...(dto.approvalStatus !== undefined && {
+              approvalStatus: dto.approvalStatus,
+            }),
+            ...(dto.skills !== undefined && {
+              skills: Array.isArray(dto.skills) ? dto.skills : [dto.skills],
+            }),
+          },
+        });
+      } else {
+        await this.prisma.workerProfile.create({
+          data: {
+            userId: id,
+            fullName: dto.fullName || null,
+            idCardNumber: dto.cccdNumber || null,
+            bio: dto.bio || null,
+            avatarUrl: dto.avatarUrl || null,
+            approvalStatus: dto.approvalStatus || 'APPROVED',
+          },
+        });
+      }
+    } else {
+      if (existingUser.customerProfile) {
+        await this.prisma.customerProfile.update({
+          where: { userId: id },
+          data: {
+            ...(dto.fullName !== undefined && { fullName: dto.fullName }),
+            ...(dto.avatarUrl !== undefined && { avatarUrl: dto.avatarUrl }),
+          },
+        });
+      } else {
+        await this.prisma.customerProfile.create({
+          data: {
+            userId: id,
+            fullName: dto.fullName || null,
+            avatarUrl: dto.avatarUrl || null,
+          },
+        });
+      }
+    }
+
+    const updatedUser = await this.prisma.user.update({
+      where: { id },
+      data: userUpdateData,
+      include: {
+        customerProfile: true,
+        workerProfile: true,
+      },
+    });
+
+    return this._formatUserResponse(updatedUser);
+  }
+
+  async deleteUser(id, currentUserId) {
+    const user = await this.prisma.user.findUnique({
+      where: { id },
+      include: {
+        customerProfile: true,
+        workerProfile: true,
+      },
+    });
+
+    if (!user) {
+      throw new NotFoundException('Không tìm thấy người dùng');
+    }
+
+    // Ràng buộc 1: Admin không được xóa tài khoản của chính mình
+    if (currentUserId && id === currentUserId) {
+      throw new BadRequestException('Bạn không thể tự xóa tài khoản của chính mình.');
+    }
+
+    // Ràng buộc 2: Admin không được xóa tài khoản Admin khác
+    if (user.role === 'ADMIN') {
+      throw new BadRequestException('Không được phép xóa tài khoản Quản trị viên (Admin).');
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      // 1. Xử lý CustomerProfile và các dữ liệu liên quan
+      if (user.customerProfile) {
+        const custId = user.customerProfile.id;
+
+        // Xóa reviews của khách hàng
+        await tx.review.deleteMany({ where: { customerId: custId } });
+
+        // Tìm các đơn hàng của khách
+        const custOrders = await tx.order.findMany({
+          where: { customerId: custId },
+          select: { id: true },
+        });
+        const orderIds = custOrders.map((o) => o.id);
+
+        if (orderIds.length > 0) {
+          await tx.review.deleteMany({ where: { orderId: { in: orderIds } } });
+          await tx.walletTransaction.deleteMany({
+            where: { orderId: { in: orderIds } },
+          });
+          await tx.commissionRecord.deleteMany({
+            where: { orderId: { in: orderIds } },
+          });
+          await tx.payment.deleteMany({ where: { orderId: { in: orderIds } } });
+          await tx.aIAnalysis.deleteMany({
+            where: { orderId: { in: orderIds } },
+          });
+          await tx.orderImage.deleteMany({
+            where: { orderId: { in: orderIds } },
+          });
+          await tx.orderStatusHistory.deleteMany({
+            where: { orderId: { in: orderIds } },
+          });
+          await tx.faceVerification.deleteMany({
+            where: { orderId: { in: orderIds } },
+          });
+          await tx.order.deleteMany({ where: { id: { in: orderIds } } });
+        }
+
+        // Xóa địa chỉ và customerProfile
+        await tx.address.deleteMany({ where: { customerId: custId } });
+        await tx.customerProfile.delete({ where: { id: custId } });
+      }
+
+      // 2. Xử lý WorkerProfile và các dữ liệu liên quan
+      if (user.workerProfile) {
+        const wId = user.workerProfile.id;
+
+        // Xóa reviews của thợ
+        await tx.review.deleteMany({ where: { workerId: wId } });
+
+        // Gỡ gán worker khỏi các order
+        await tx.order.updateMany({
+          where: { workerId: wId },
+          data: { workerId: null },
+        });
+
+        // Xóa worker services
+        await tx.workerService.deleteMany({ where: { workerId: wId } });
+
+        // Xóa faceProfile
+        const faceProfile = await tx.faceProfile.findUnique({
+          where: { workerId: wId },
+        });
+        if (faceProfile) {
+          await tx.faceVerification.deleteMany({
+            where: { faceProfileId: faceProfile.id },
+          });
+          await tx.faceProfile.delete({ where: { id: faceProfile.id } });
+        }
+
+        // Xóa ví thợ và lịch sử giao dịch ví
+        const wallet = await tx.wallet.findUnique({ where: { workerId: wId } });
+        if (wallet) {
+          await tx.walletTransaction.deleteMany({
+            where: { walletId: wallet.id },
+          });
+          await tx.wallet.delete({ where: { id: wallet.id } });
+        }
+
+        // Xóa workerProfile
+        await tx.workerProfile.delete({ where: { id: wId } });
+      }
+
+      // 3. Xóa bản ghi User
+      await tx.user.delete({
+        where: { id },
+      });
+    });
+
+    return {
+      success: true,
+      message: 'Xóa người dùng thành công',
+      id,
+    };
   }
 
   // ==========================================

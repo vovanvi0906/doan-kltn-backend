@@ -3,18 +3,29 @@ import {
   Get,
   Post,
   Patch,
+  Delete,
   Bind,
   Body,
   Param,
   Query,
+  Req,
   UseGuards,
   Dependencies,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiBearerAuth,
+  ApiQuery,
+  ApiParam,
+} from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { AdminService } from './admin.service';
+import { AdminCreateUserDto } from './dto/admin-create-user.dto';
+import { AdminUpdateUserDto } from './dto/admin-update-user.dto';
+import { AdminGetUsersDto } from './dto/admin-get-users.dto';
 
 @ApiTags('admin')
 @ApiBearerAuth()
@@ -25,6 +36,57 @@ import { AdminService } from './admin.service';
 export class AdminController {
   constructor(adminService) {
     this.adminService = adminService;
+  }
+
+  // ==========================================
+  // USER MANAGEMENT (CRUD)
+  // ==========================================
+
+  @Get('users')
+  @ApiOperation({
+    summary:
+      'Lấy danh sách người dùng (Customer, Worker, Admin) kèm phân trang và tìm kiếm',
+  })
+  @ApiQuery({ name: 'role', required: false, enum: ['CUSTOMER', 'WORKER', 'ADMIN', 'ALL'] })
+  @ApiQuery({ name: 'status', required: false, type: String })
+  @ApiQuery({ name: 'search', required: false, type: String })
+  @ApiQuery({ name: 'page', required: false, type: Number })
+  @ApiQuery({ name: 'limit', required: false, type: Number })
+  @Bind(Query())
+  async getUsers(query) {
+    return this.adminService.getUsers(query);
+  }
+
+  @Get('users/:id')
+  @ApiOperation({ summary: 'Lấy thông tin chi tiết một người dùng' })
+  @ApiParam({ name: 'id', required: true, description: 'User ID' })
+  @Bind(Param('id'))
+  async getUserById(id) {
+    return this.adminService.getUserById(id);
+  }
+
+  @Post('users')
+  @ApiOperation({ summary: 'Tạo tài khoản người dùng mới (Customer hoặc Worker)' })
+  @Bind(Body())
+  async createUser(body) {
+    return this.adminService.createUser(body);
+  }
+
+  @Patch('users/:id')
+  @ApiOperation({ summary: 'Cập nhật thông tin người dùng' })
+  @ApiParam({ name: 'id', required: true, description: 'User ID' })
+  @Bind(Param('id'), Body())
+  async updateUser(id, body) {
+    return this.adminService.updateUser(id, body);
+  }
+
+  @Delete('users/:id')
+  @ApiOperation({ summary: 'Xóa người dùng khỏi hệ thống' })
+  @ApiParam({ name: 'id', required: true, description: 'User ID' })
+  @Bind(Param('id'), Req())
+  async deleteUser(id, req) {
+    const currentUserId = req?.user?.id || req?.user?.userId;
+    return this.adminService.deleteUser(id, currentUserId);
   }
 
   // ==========================================
@@ -64,7 +126,10 @@ export class AdminController {
   // ==========================================
 
   @Get('workers')
-  @ApiOperation({ summary: 'Lấy danh sách hồ sơ thợ (mặc định hoặc lọc theo status: PENDING, DRAFT, APPROVED, REJECTED)' })
+  @ApiOperation({
+    summary:
+      'Lấy danh sách hồ sơ thợ (mặc định hoặc lọc theo status: PENDING, DRAFT, APPROVED, REJECTED)',
+  })
   @ApiQuery({ name: 'status', required: false, type: String })
   @Bind(Query('status'))
   async getWorkers(status) {

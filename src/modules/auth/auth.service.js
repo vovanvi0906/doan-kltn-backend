@@ -88,23 +88,43 @@ export class AuthService {
     };
   }
 
-  async login(email, password) {
-    const user = await this.usersService.findByEmail(email);
+  async login(emailOrPhone, password) {
+    console.log('🔑 [Backend AuthService] Nhận yêu cầu đăng nhập:', { identifier: emailOrPhone });
+
+    if (!emailOrPhone || !password) {
+      console.warn('⚠️ [Backend AuthService] Thiếu emailOrPhone hoặc password');
+      throw new BadRequestException('Vui lòng nhập đầy đủ thông tin đăng nhập');
+    }
+
+    const user = await this.usersService.findByEmailOrPhone(emailOrPhone);
     if (!user) {
-      throw new UnauthorizedException('Email hoặc mật khẩu không chính xác');
+      console.warn('⚠️ [Backend AuthService] Không tìm thấy user với định danh:', emailOrPhone);
+      throw new UnauthorizedException('Email / Số điện thoại hoặc mật khẩu không chính xác');
     }
 
     if (user.status === 'BLOCKED') {
+      console.warn('⚠️ [Backend AuthService] User bị khóa:', user.email);
       throw new ForbiddenException('Tài khoản của bạn đã bị khóa. Vui lòng liên hệ Admin');
     }
 
     const isMatch = await bcrypt.compare(password, user.passwordHash);
     if (!isMatch) {
-      throw new UnauthorizedException('Email hoặc mật khẩu không chính xác');
+      console.warn('⚠️ [Backend AuthService] Mật khẩu không khớp cho user:', {
+        email: user.email,
+        phone: user.phone,
+      });
+      throw new UnauthorizedException('Email / Số điện thoại hoặc mật khẩu không chính xác');
     }
 
     const token = this.jwtService.sign({ sub: user.id, role: user.role });
     const { passwordHash: _, ...sanitizedUser } = user;
+
+    console.log('✅ [Backend AuthService] Đăng nhập thành công:', {
+      userId: user.id,
+      email: user.email,
+      phone: user.phone,
+      role: user.role,
+    });
 
     return {
       message: 'Đăng nhập thành công',

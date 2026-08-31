@@ -28,6 +28,25 @@ export class UsersRepository {
     });
   }
 
+  async findByEmailOrPhone(identifier) {
+    if (!identifier) return null;
+    const cleanPhone = identifier.replace(/@(phone|worker)\.alotho\.vn$/, '').trim();
+    return this.prisma.user.findFirst({
+      where: {
+        OR: [
+          { email: identifier },
+          { email: cleanPhone },
+          { phone: identifier },
+          { phone: cleanPhone },
+        ],
+      },
+      include: {
+        customerProfile: true,
+        workerProfile: true,
+      },
+    });
+  }
+
   async create(userData) {
     return this.prisma.user.create({
       data: userData,

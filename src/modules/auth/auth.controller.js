@@ -28,6 +28,7 @@ export class AuthController {
   @ApiOperation({ summary: 'Đăng nhập hệ thống' })
   @Bind(Body())
   async login(body) {
-    return this.authService.login(body.email, body.password);
+    const identifier = body.email || body.emailOrPhone || body.phone || body.username;
+    return this.authService.login(identifier, body.password);
   }
 }
