@@ -17,12 +17,27 @@ export class AuthService {
     this.jwtService = jwtService;
   }
 
+  async register(data) {
+    const role = (data.role || 'CUSTOMER').toUpperCase();
+    if (role === 'WORKER') {
+      return this.registerWorker(data);
+    }
+    return this.registerCustomer(data);
+  }
+
   async registerCustomer(data) {
     const { email, password, phone, fullName, avatarUrl } = data;
 
-    const existingUser = await this.usersService.findByEmail(email);
-    if (existingUser) {
+    const existingEmail = await this.usersService.findByEmail(email);
+    if (existingEmail) {
       throw new BadRequestException('Email đã tồn tại trong hệ thống');
+    }
+
+    if (phone) {
+      const existingPhone = await this.usersService.findByPhone(phone);
+      if (existingPhone) {
+        throw new BadRequestException('Số điện thoại đã tồn tại trong hệ thống');
+      }
     }
 
     const passwordHash = await bcrypt.hash(password, 10);
@@ -52,11 +67,18 @@ export class AuthService {
   }
 
   async registerWorker(data) {
-    const { email, password, phone, fullName, avatarUrl, skills, bio } = data;
+    const { email, password, phone, fullName, avatarUrl, skills, bio, cccdNumber } = data;
 
-    const existingUser = await this.usersService.findByEmail(email);
-    if (existingUser) {
+    const existingEmail = await this.usersService.findByEmail(email);
+    if (existingEmail) {
       throw new BadRequestException('Email đã tồn tại trong hệ thống');
+    }
+
+    if (phone) {
+      const existingPhone = await this.usersService.findByPhone(phone);
+      if (existingPhone) {
+        throw new BadRequestException('Số điện thoại đã tồn tại trong hệ thống');
+      }
     }
 
     const passwordHash = await bcrypt.hash(password, 10);
@@ -71,7 +93,8 @@ export class AuthService {
         create: {
           fullName: fullName || null,
           avatarUrl: avatarUrl || null,
-          skills: skills || [],
+          idCardNumber: cccdNumber || null,
+          skills: Array.isArray(skills) ? skills : skills ? [skills] : [],
           bio: bio || null,
           approvalStatus: 'DRAFT',
         },

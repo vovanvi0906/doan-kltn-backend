@@ -16,6 +16,10 @@ export class UsersService {
     return this.usersRepository.findByEmail(email);
   }
 
+  async findByPhone(phone) {
+    return this.usersRepository.findByPhone(phone);
+  }
+
   async findByEmailOrPhone(identifier) {
     return this.usersRepository.findByEmailOrPhone(identifier);
   }
