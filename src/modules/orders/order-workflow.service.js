@@ -4,16 +4,19 @@ import {
   NotFoundException,
   BadRequestException,
   ForbiddenException,
+  ConflictException,
 } from '@nestjs/common';
 import { OrdersRepository } from './orders.repository';
 import { ORDER_STATUS } from './constants/order-status';
 import { OrderTransitionValidator } from './validators/order-transition.validator';
+import { PrismaService } from '../../infrastructure/database/prisma.service';
 
 @Injectable()
-@Dependencies(OrdersRepository)
+@Dependencies(OrdersRepository, PrismaService)
 export class OrderWorkflowService {
-  constructor(ordersRepository) {
+  constructor(ordersRepository, prisma) {
     this.ordersRepository = ordersRepository;
+    this.prisma = prisma;
   }
 
   async getOrderOrThrow(orderId) {
@@ -26,24 +29,81 @@ export class OrderWorkflowService {
 
   /**
    * SEARCHING -> ASSIGNED (Gán thợ nhận đơn)
+   * XỬ LÝ TRANH CHẤP NGUYÊN TỬ (Atomic Lock & Conflict 409)
+   * Đảm bảo khi 3 thợ cùng bấm nhận đơn 1 mili-giây, chỉ duy nhất 1 thợ thành công (200), 2 thợ còn lại nhận 409 Conflict.
    */
   async assignWorker(orderId, workerProfileId, changedByUserId) {
-    const order = await this.getOrderOrThrow(orderId);
+    return this.prisma.$transaction(async (tx) => {
+      // 1. Thực hiện Atomic Update có điều kiện WHERE id = orderId AND status = 'SEARCHING'
+      const updateResult = await tx.order.updateMany({
+        where: {
+          id: orderId,
+          status: 'SEARCHING',
+        },
+        data: {
+          status: 'ASSIGNED',
+          workerId: workerProfileId,
+        },
+      });
 
-    OrderTransitionValidator.validateTransition(
-      order.status,
-      ORDER_STATUS.ASSIGNED,
-    );
+      // 2. Nếu số dòng update = 0 nghĩa là đơn đã bị thợ khác nhận trước hoặc không còn khả dụng
+      if (updateResult.count === 0) {
+        const existingOrder = await tx.order.findUnique({
+          where: { id: orderId },
+        });
 
-    return this.ordersRepository.updateStatusWithHistory(
-      orderId,
-      ORDER_STATUS.ASSIGNED,
-      {
-        updateData: { workerId: workerProfileId },
-        note: `Thợ đã nhận đơn hàng (Worker ID: ${workerProfileId})`,
-        changedByUserId,
-      },
-    );
+        if (!existingOrder) {
+          throw new NotFoundException(`Không tìm thấy đơn hàng với ID: ${orderId}`);
+        }
+
+        throw new ConflictException(
+          'Đơn hàng đã có thợ khác nhận hoặc không còn ở trạng thái chờ nhận!'
+        );
+      }
+
+      // 3. Ghi vết lịch sử trạng thái
+      await tx.orderStatusHistory.create({
+        data: {
+          orderId,
+          status: 'ASSIGNED',
+          note: `Thợ đã nhận đơn hàng thành công (Worker ID: ${workerProfileId})`,
+          changedBy: changedByUserId,
+        },
+      });
+
+      // 4. Lấy đầy đủ thông tin đơn hàng đã gán
+      const assignedOrder = await tx.order.findUnique({
+        where: { id: orderId },
+        include: {
+          customer: {
+            include: {
+              user: {
+                select: {
+                  id: true,
+                  email: true,
+                  phone: true,
+                },
+              },
+            },
+          },
+          worker: {
+            include: {
+              user: {
+                select: {
+                  id: true,
+                  email: true,
+                  phone: true,
+                },
+              },
+            },
+          },
+          service: true,
+          address: true,
+        },
+      });
+
+      return assignedOrder;
+    });
   }
 
   /**
@@ -98,7 +158,6 @@ export class OrderWorkflowService {
 
   /**
    * ARRIVED -> IN_PROGRESS (Thợ bắt đầu làm việc)
-   * Face Verification là điều kiện kiểm tra nội bộ tại bước này nếu có tích hợp
    */
   async startWork(orderId, workerProfileId, changedByUserId, faceVerified = true) {
     const order = await this.getOrderOrThrow(orderId);
@@ -205,7 +264,6 @@ export class OrderWorkflowService {
   async cancel(orderId, reason, changedByUserId, userRole, profileId = null) {
     const order = await this.getOrderOrThrow(orderId);
 
-    // Kiểm tra quyền hủy
     if (userRole === 'CUSTOMER' && profileId && order.customerId !== profileId) {
       throw new ForbiddenException('Bạn không thể hủy đơn hàng của người khác');
     }

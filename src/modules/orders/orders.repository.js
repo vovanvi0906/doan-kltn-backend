@@ -1,4 +1,5 @@
 import { Injectable, Dependencies } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../infrastructure/database/prisma.service';
 
 @Injectable()
@@ -170,6 +171,67 @@ export class OrdersRepository {
       },
       orderBy: { createdAt: 'desc' },
     });
+  }
+
+  /**
+   * Quét không gian tìm thợ trực tuyến (Online) trong bán kính radiusKm (mặc định 5km)
+   * Sử dụng công thức Haversine/PostGIS tính khoảng cách địa lý
+   */
+  async findNearbyOnlineWorkers(serviceId, lat, lng, radiusKm = 5) {
+    const parsedLat = parseFloat(lat);
+    const parsedLng = parseFloat(lng);
+    const parsedRadius = parseFloat(radiusKm);
+
+    try {
+      // Query raw SQL sử dụng hàm tính khoảng cách địa lý Haversine
+      const workers = await this.prisma.$queryRaw`
+        SELECT 
+          wp.id,
+          wp."userId",
+          wp."fullName",
+          wp."avatarUrl",
+          wp."currentLat",
+          wp."currentLng",
+          wp."ratingAvg",
+          wp."totalReviews",
+          (6371 * acos(
+            LEAST(1.0, GREATEST(-1.0, 
+              cos(radians(${parsedLat})) * cos(radians(wp."currentLat")) *
+              cos(radians(wp."currentLng") - radians(${parsedLng})) +
+              sin(radians(${parsedLat})) * sin(radians(wp."currentLat"))
+            ))
+          )) AS distance_km
+        FROM "worker_profiles" wp
+        WHERE wp."isOnline" = true
+          AND wp."currentLat" IS NOT NULL
+          AND wp."currentLng" IS NOT NULL
+          AND (6371 * acos(
+            LEAST(1.0, GREATEST(-1.0, 
+              cos(radians(${parsedLat})) * cos(radians(wp."currentLat")) *
+              cos(radians(wp."currentLng") - radians(${parsedLng})) +
+              sin(radians(${parsedLat})) * sin(radians(wp."currentLat"))
+            ))
+          )) <= ${parsedRadius}
+        ORDER BY distance_km ASC
+        LIMIT 20;
+      `;
+
+      return workers.map((w) => ({
+        ...w,
+        distanceKm: parseFloat(w.distance_km || 0).toFixed(2),
+      }));
+    } catch (err) {
+      console.warn('⚠️ [PostGIS Scan Warning]:', err.message);
+      // Fallback query nếu có lỗi cấu hình hàm toán học
+      return this.prisma.workerProfile.findMany({
+        where: {
+          isOnline: true,
+          currentLat: { not: null },
+          currentLng: { not: null },
+        },
+        take: 10,
+      });
+    }
   }
 
   async create(orderData, changedByUserId = null) {

@@ -10,7 +10,14 @@ import {
   Bind,
   Dependencies,
 } from '@nestjs/common';
-import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiBearerAuth,
+  ApiOperation,
+  ApiResponse,
+  ApiBody,
+  ApiParam,
+} from '@nestjs/swagger';
 import { OrdersService } from './orders.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -30,7 +37,17 @@ export class OrdersController {
 
   @Post()
   @Roles('CUSTOMER')
-  @ApiOperation({ summary: 'Tạo đơn dịch vụ mới (Dành cho Khách hàng - Chuyển vào trạng thái SEARCHING)' })
+  @ApiOperation({
+    summary: 'Tạo đơn dịch vụ mới (Khách hàng - Khởi tạo trạng thái SEARCHING & quét thợ 5km)',
+  })
+  @ApiBody({ type: CreateOrderDto })
+  @ApiResponse({
+    status: 201,
+    description: 'Tạo đơn thành công, trả về orderId và số lượng thợ tìm thấy xung quanh',
+  })
+  @ApiResponse({ status: 400, description: 'Dữ liệu không hợp lệ (thiếu tọa độ hoặc serviceId)' })
+  @ApiResponse({ status: 401, description: 'Chưa xác thực JWT' })
+  @ApiResponse({ status: 404, description: 'Không tìm thấy Dịch vụ hoặc Địa chỉ' })
   @Bind(Req(), Body())
   async createOrder(req, createOrderDto) {
     return this.ordersService.createOrder(req.user.userId, createOrderDto);
@@ -38,6 +55,7 @@ export class OrdersController {
 
   @Get()
   @ApiOperation({ summary: 'Lấy danh sách đơn hàng của người dùng hiện tại' })
+  @ApiResponse({ status: 200, description: 'Danh sách đơn hàng' })
   @Bind(Req())
   async getMyOrders(req) {
     return this.ordersService.getMyOrders(req.user.userId, req.user.role);
@@ -46,6 +64,7 @@ export class OrdersController {
   @Get('worker/current')
   @Roles('WORKER')
   @ApiOperation({ summary: 'Lấy đơn hàng đang nhận/đang thực hiện của thợ' })
+  @ApiResponse({ status: 200, description: 'Đơn hàng hiện tại hoặc null' })
   @Bind(Req())
   async getCurrentWorkerOrder(req) {
     return this.ordersService.getCurrentWorkerOrder(req.user.userId);
@@ -53,14 +72,35 @@ export class OrdersController {
 
   @Get(':id')
   @ApiOperation({ summary: 'Lấy thông tin chi tiết đơn hàng (Có phân quyền)' })
+  @ApiParam({ name: 'id', description: 'Order UUID' })
+  @ApiResponse({ status: 200, description: 'Chi tiết đơn hàng' })
+  @ApiResponse({ status: 404, description: 'Không tìm thấy đơn hàng' })
   @Bind(Req(), Param('id'))
   async getOrderById(req, id) {
     return this.ordersService.getOrderById(id, req.user.userId, req.user.role);
   }
 
+  @Post(':id/accept')
+  @Roles('WORKER')
+  @ApiOperation({
+    summary: 'Thợ nhận đơn hàng (POST - Xử lý tranh chấp Race condition, chuyển SEARCHING -> ASSIGNED)',
+  })
+  @ApiParam({ name: 'id', description: 'Order UUID' })
+  @ApiResponse({ status: 200, description: 'Nhận đơn thành công (ASSIGNED)' })
+  @ApiResponse({ status: 409, description: 'Conflict: Đơn hàng đã có thợ khác nhận trước' })
+  @Bind(Req(), Param('id'))
+  async acceptOrderPost(req, id) {
+    return this.ordersService.acceptOrder(id, req.user.userId);
+  }
+
   @Patch(':id/accept')
   @Roles('WORKER')
-  @ApiOperation({ summary: 'Thợ chấp nhận đơn hàng (SEARCHING -> ASSIGNED)' })
+  @ApiOperation({
+    summary: 'Thợ nhận đơn hàng (PATCH - Xử lý tranh chấp Race condition, chuyển SEARCHING -> ASSIGNED)',
+  })
+  @ApiParam({ name: 'id', description: 'Order UUID' })
+  @ApiResponse({ status: 200, description: 'Nhận đơn thành công (ASSIGNED)' })
+  @ApiResponse({ status: 409, description: 'Conflict: Đơn hàng đã có thợ khác nhận trước' })
   @Bind(Req(), Param('id'))
   async acceptOrder(req, id) {
     return this.ordersService.acceptOrder(id, req.user.userId);
@@ -116,13 +156,14 @@ export class OrdersController {
 
   @Patch(':id/cancel')
   @ApiOperation({ summary: 'Hủy đơn hàng (* -> CANCELLED)' })
+  @ApiBody({ type: CancelOrderDto })
   @Bind(Req(), Param('id'), Body())
   async cancelOrder(req, id, cancelDto) {
     return this.ordersService.cancelOrder(
       id,
       req.user.userId,
       req.user.role,
-      cancelDto?.reason || 'Hủy theo yêu cầu',
+      cancelDto?.reason || 'Hủy theo yêu cầu'
     );
   }
 }
