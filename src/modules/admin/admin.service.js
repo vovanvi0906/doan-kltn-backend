@@ -1451,7 +1451,287 @@ export class AdminService {
       mimeType: 'text/csv; charset=utf-8',
     };
   }
+
+  // ==========================================
+  // SYSTEM SETTINGS MODULE
+  // ==========================================
+
+  async getSystemSettings() {
+    let settings = await this.prisma.systemSetting.findFirst();
+
+    if (!settings) {
+      settings = await this.prisma.systemSetting.create({
+        data: {
+          siteName: 'FixGo - Nền tảng Dịch vụ Cứu hộ & Sửa chữa',
+          supportEmail: 'support@fixgo.vn',
+          supportHotline: '1900-8888',
+          maxSearchRadiusKm: 15.0,
+          defaultCommissionRate: 15.0,
+          orderTimeoutSeconds: 60,
+          autoMatching: true,
+          notifyOnArrival: true,
+          smsOtpEnabled: true,
+          maintenanceMode: false,
+          maintenanceMessage:
+            'Hệ thống đang bảo trì nâng cấp định kỳ. Xin vui lòng quay lại sau ít phút!',
+        },
+      });
+    }
+
+    return settings;
+  }
+
+  async updateSystemSettings(data) {
+    const current = await this.getSystemSettings();
+
+    const updateData = {};
+    if (data.siteName !== undefined) updateData.siteName = String(data.siteName);
+    if (data.supportEmail !== undefined) updateData.supportEmail = String(data.supportEmail);
+    if (data.supportHotline !== undefined) updateData.supportHotline = String(data.supportHotline);
+    if (data.maxSearchRadiusKm !== undefined) {
+      updateData.maxSearchRadiusKm = parseFloat(data.maxSearchRadiusKm) || 15.0;
+    }
+    if (data.defaultCommissionRate !== undefined) {
+      updateData.defaultCommissionRate = parseFloat(data.defaultCommissionRate) || 15.0;
+    }
+    if (data.orderTimeoutSeconds !== undefined) {
+      updateData.orderTimeoutSeconds = parseInt(data.orderTimeoutSeconds, 10) || 60;
+    }
+    if (data.autoMatching !== undefined) updateData.autoMatching = Boolean(data.autoMatching);
+    if (data.notifyOnArrival !== undefined) updateData.notifyOnArrival = Boolean(data.notifyOnArrival);
+    if (data.smsOtpEnabled !== undefined) updateData.smsOtpEnabled = Boolean(data.smsOtpEnabled);
+    if (data.maintenanceMode !== undefined) updateData.maintenanceMode = Boolean(data.maintenanceMode);
+    if (data.maintenanceMessage !== undefined) {
+      updateData.maintenanceMessage = String(data.maintenanceMessage);
+    }
+
+    const updated = await this.prisma.systemSetting.update({
+      where: { id: current.id },
+      data: updateData,
+    });
+
+    return {
+      success: true,
+      message: 'Cập nhật cấu hình hệ thống thành công',
+      settings: updated,
+    };
+  }
+
+  // ==========================================
+  // DASHBOARD OVERVIEW (REAL DATABASE DATA)
+  // ==========================================
+
+  async getDashboardOverview(timeframe = 'month') {
+    const { startDate, endDate } = this._getTimeBounds(
+      timeframe === 'week' ? '7days' : timeframe
+    );
+
+    const [
+      totalCustomers,
+      totalWorkers,
+      pendingWorkers,
+      onlineWorkers,
+      totalOrdersAllTime,
+      totalOrdersInPeriod,
+      completedOrders,
+      activeOrders,
+      revenueResult,
+      categories,
+      recentOrders,
+      recentWorkers,
+    ] = await Promise.all([
+      // 1. Tổng khách hàng thực tế
+      this.prisma.customerProfile.count(),
+
+      // 2. Tổng thợ đã phê duyệt
+      this.prisma.workerProfile.count({
+        where: { approvalStatus: 'APPROVED' },
+      }),
+
+      // 3. Số thợ đang chờ phê duyệt
+      this.prisma.workerProfile.count({
+        where: { approvalStatus: 'PENDING' },
+      }),
+
+      // 4. Số thợ đang online
+      this.prisma.workerProfile.count({
+        where: { isOnline: true },
+      }),
+
+      // 5. Tổng đơn hàng toàn thời gian
+      this.prisma.order.count(),
+
+      // 6. Tổng đơn hàng trong kỳ
+      this.prisma.order.count({
+        where: { createdAt: { gte: startDate, lte: endDate } },
+      }),
+
+      // 7. Đơn hoàn thành trong kỳ
+      this.prisma.order.count({
+        where: {
+          status: 'COMPLETED',
+          createdAt: { gte: startDate, lte: endDate },
+        },
+      }),
+
+      // 8. Đơn đang hoạt động (active)
+      this.prisma.order.count({
+        where: {
+          status: {
+            in: [
+              'SEARCHING',
+              'ASSIGNED',
+              'WORKER_ARRIVING',
+              'ARRIVED',
+              'IN_PROGRESS',
+              'AWAITING_PAYMENT',
+            ],
+          },
+        },
+      }),
+
+      // 9. Tổng doanh thu từ đơn COMPLETED trong kỳ
+      this.prisma.order.aggregate({
+        where: {
+          status: 'COMPLETED',
+          createdAt: { gte: startDate, lte: endDate },
+        },
+        _sum: { totalPrice: true },
+      }),
+
+      // 10. Phân bổ dịch vụ thực tế
+      this.prisma.serviceCategory.findMany({
+        include: {
+          services: {
+            include: {
+              _count: { select: { orders: true } },
+            },
+          },
+        },
+      }),
+
+      // 11. Đơn hàng gần đây thực tế
+      this.prisma.order.findMany({
+        take: 5,
+        orderBy: { createdAt: 'desc' },
+        include: {
+          customer: { select: { fullName: true } },
+          worker: { select: { fullName: true } },
+          service: { select: { name: true } },
+        },
+      }),
+
+      // 12. Thợ đăng ký gần đây thực tế
+      this.prisma.workerProfile.findMany({
+        take: 3,
+        orderBy: { createdAt: 'desc' },
+        select: {
+          id: true,
+          fullName: true,
+          approvalStatus: true,
+          createdAt: true,
+        },
+      }),
+    ]);
+
+    const totalRevenue = Number(revenueResult._sum?.totalPrice || 0);
+
+    // Tính toán phân bổ danh mục dịch vụ thực
+    const colors = ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#06b6d4', '#ec4899'];
+    let serviceDistribution = categories.map((cat, idx) => {
+      const orderCount = cat.services.reduce(
+        (acc, s) => acc + (s._count?.orders || 0),
+        0
+      );
+      return {
+        id: cat.id,
+        name: cat.name,
+        count: orderCount,
+        color: colors[idx % colors.length],
+      };
+    });
+
+    const totalCategoryOrders = serviceDistribution.reduce(
+      (sum, item) => sum + item.count,
+      0
+    );
+    serviceDistribution = serviceDistribution.map((item) => ({
+      ...item,
+      percentage:
+        totalCategoryOrders > 0
+          ? Math.round((item.count / totalCategoryOrders) * 100)
+          : 0,
+    }));
+
+    // Tổng hợp hoạt động gần đây từ Order và WorkerProfile
+    const recentActivities = [];
+
+    recentOrders.forEach((order) => {
+      let title = 'Đơn hàng mới';
+      let type = 'ORDER_CREATED';
+      if (order.status === 'COMPLETED') {
+        title = 'Đơn hàng hoàn tất';
+        type = 'ORDER_COMPLETED';
+      } else if (order.status === 'CANCELLED') {
+        title = 'Đơn hàng đã hủy';
+        type = 'ORDER_CANCELLED';
+      } else if (order.status === 'IN_PROGRESS') {
+        title = 'Đơn đang thực hiện';
+        type = 'ORDER_IN_PROGRESS';
+      } else if (order.status === 'ASSIGNED') {
+        title = 'Thợ đã nhận đơn';
+        type = 'ORDER_ASSIGNED';
+      }
+
+      recentActivities.push({
+        id: `ord-${order.id}`,
+        type,
+        title,
+        description: `Dịch vụ: ${order.service?.name || 'Sửa chữa'} • Khách: ${
+          order.customer?.fullName || 'Khách hàng'
+        }`,
+        createdAt: order.createdAt,
+        status: order.status,
+      });
+    });
+
+    recentWorkers.forEach((worker) => {
+      recentActivities.push({
+        id: `wkr-${worker.id}`,
+        type:
+          worker.approvalStatus === 'APPROVED'
+            ? 'WORKER_APPROVED'
+            : 'WORKER_REGISTER',
+        title:
+          worker.approvalStatus === 'APPROVED'
+            ? 'Phê duyệt hồ sơ thợ'
+            : 'Thợ mới đăng ký hồ sơ',
+        description: `Thợ: ${worker.fullName} • Trạng thái: ${worker.approvalStatus}`,
+        createdAt: worker.createdAt,
+        status: worker.approvalStatus,
+      });
+    });
+
+    recentActivities.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+    return {
+      totalCustomers,
+      totalWorkers,
+      pendingWorkers,
+      onlineWorkers,
+      totalOrders: totalOrdersAllTime,
+      totalOrdersInPeriod,
+      completedOrders,
+      activeOrders,
+      totalRevenue,
+      serviceDistribution,
+      recentActivities: recentActivities.slice(0, 5),
+      timeframe,
+    };
+  }
 }
+
+
 
 
 

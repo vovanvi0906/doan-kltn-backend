@@ -381,3 +381,27 @@ model Review {
 
   @@map("reviews")
 }
+
+// ========================================================
+// SYSTEM SETTINGS
+// ========================================================
+
+model SystemSetting {
+  id                    String   @id @default(uuid())
+  siteName              String   @default("FixGo - Nền tảng Dịch vụ Cứu hộ & Sửa chữa")
+  supportEmail          String   @default("support@fixgo.vn")
+  supportHotline        String   @default("1900-8888")
+  maxSearchRadiusKm     Float    @default(15.0)
+  defaultCommissionRate Float    @default(15.0)
+  orderTimeoutSeconds   Int      @default(60)
+  autoMatching          Boolean  @default(true)
+  notifyOnArrival       Boolean  @default(true)
+  smsOtpEnabled         Boolean  @default(true)
+  maintenanceMode       Boolean  @default(false)
+  maintenanceMessage    String?  @default("Hệ thống đang bảo trì nâng cấp định kỳ. Xin vui lòng quay lại sau ít phút!")
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  @@map("system_settings")
+}
+

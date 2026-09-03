@@ -312,7 +312,46 @@ export class AdminController {
   async exportAnalyticsReport(timeRange) {
     return this.adminService.exportAnalyticsReport(timeRange);
   }
+
+  // ==========================================
+  // SYSTEM SETTINGS MODULE
+  // ==========================================
+
+  @Get('settings')
+  @ApiOperation({ summary: 'Lấy toàn bộ thông tin cấu hình hiện tại của hệ thống' })
+  async getSystemSettings() {
+    return this.adminService.getSystemSettings();
+  }
+
+  @Patch('settings')
+  @ApiOperation({ summary: 'Cập nhật các tham số cấu hình hệ thống' })
+  @Bind(Body())
+  async updateSystemSettings(body) {
+    return this.adminService.updateSystemSettings(body);
+  }
+
+  // ==========================================
+  // DASHBOARD OVERVIEW & STATS
+  // ==========================================
+
+  @Get('dashboard/overview')
+  @ApiOperation({ summary: 'Lấy các số liệu tổng quan thời gian thực cho trang Dashboard' })
+  @ApiQuery({ name: 'timeframe', required: false, enum: ['today', 'week', 'month'] })
+  @Bind(Query('timeframe'))
+  async getDashboardOverview(timeframe) {
+    return this.adminService.getDashboardOverview(timeframe);
+  }
+
+  @Get('stats')
+  @ApiOperation({ summary: 'Lấy số liệu thống kê tổng quan (Alias)' })
+  @ApiQuery({ name: 'timeframe', required: false, enum: ['today', 'week', 'month'] })
+  @Bind(Query('timeframe'))
+  async getDashboardStats(timeframe) {
+    return this.adminService.getDashboardOverview(timeframe);
+  }
 }
+
+
 
 
 
