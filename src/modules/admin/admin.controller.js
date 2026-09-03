@@ -176,5 +176,52 @@ export class AdminController {
     const currentUserId = req?.user?.id || req?.user?.userId;
     return this.adminService.deleteWorker(id, currentUserId);
   }
+
+  // ==========================================
+  // ORDERS MANAGEMENT (CRUD)
+  // ==========================================
+
+  @Get('orders')
+  @ApiOperation({ summary: 'Lấy danh sách đơn hàng toàn hệ thống kèm bộ lọc và phân trang' })
+  @ApiQuery({ name: 'status', required: false, type: String })
+  @ApiQuery({ name: 'categoryId', required: false, type: String })
+  @ApiQuery({ name: 'search', required: false, type: String })
+  @ApiQuery({ name: 'page', required: false, type: Number })
+  @ApiQuery({ name: 'limit', required: false, type: Number })
+  @Bind(Query())
+  async getOrders(query) {
+    return this.adminService.getOrders(query);
+  }
+
+  @Get('orders/:id')
+  @ApiOperation({ summary: 'Lấy chi tiết đơn hàng (khách, thợ, dịch vụ, lịch sử trạng thái)' })
+  @Bind(Param('id'))
+  async getOrderById(id) {
+    return this.adminService.getOrderById(id);
+  }
+
+  @Patch('orders/:id/status')
+  @ApiOperation({ summary: 'Cập nhật trạng thái đơn hàng thủ công bởi Admin' })
+  @Bind(Param('id'), Body(), Req())
+  async updateOrderStatus(id, body, req) {
+    const adminId = req?.user?.id || req?.user?.userId;
+    return this.adminService.updateOrderStatus(id, body?.status, body?.note, adminId);
+  }
+
+  @Patch('orders/:id/cancel')
+  @ApiOperation({ summary: 'Hủy đơn hàng bởi Quản trị viên' })
+  @Bind(Param('id'), Body(), Req())
+  async cancelOrder(id, body, req) {
+    const adminId = req?.user?.id || req?.user?.userId;
+    return this.adminService.cancelOrder(id, body?.reason, adminId);
+  }
+
+  @Delete('orders/:id')
+  @ApiOperation({ summary: 'Xóa hoàn toàn đơn hàng vi phạm quy tắc hệ thống' })
+  @Bind(Param('id'))
+  async deleteOrder(id) {
+    return this.adminService.deleteOrder(id);
+  }
 }
+
 

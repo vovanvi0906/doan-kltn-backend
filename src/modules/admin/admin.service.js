@@ -709,5 +709,249 @@ export class AdminService {
 
     return this.deleteUser(worker.userId, currentUserId);
   }
+
+  // ==========================================
+  // ORDERS MANAGEMENT (CRUD & STATUS WORKFLOW)
+  // ==========================================
+
+  async getOrders(query = {}) {
+    const statusParam = query?.status;
+    const categoryId = query?.categoryId;
+    const search = query?.search ? query.search.trim() : undefined;
+    const page = query?.page ? Math.max(1, parseInt(query.page, 10)) : 1;
+    const limit = query?.limit ? Math.max(1, parseInt(query.limit, 10)) : 10;
+    const skip = (page - 1) * limit;
+
+    const where = {};
+
+    // 1. Filter by Status
+    if (statusParam && statusParam !== 'ALL') {
+      if (statusParam === 'IN_PROGRESS') {
+        where.status = {
+          in: ['ASSIGNED', 'WORKER_ARRIVING', 'ARRIVED', 'IN_PROGRESS', 'AWAITING_CONFIRMATION', 'AWAITING_PAYMENT'],
+        };
+      } else {
+        where.status = statusParam;
+      }
+    }
+
+    // 2. Filter by Category
+    if (categoryId && categoryId !== 'ALL') {
+      where.service = { categoryId };
+    }
+
+    // 3. Search
+    if (search) {
+      where.OR = [
+        { id: { contains: search, mode: 'insensitive' } },
+        { pickupAddress: { contains: search, mode: 'insensitive' } },
+        { note: { contains: search, mode: 'insensitive' } },
+        { customer: { fullName: { contains: search, mode: 'insensitive' } } },
+        { worker: { fullName: { contains: search, mode: 'insensitive' } } },
+        { service: { name: { contains: search, mode: 'insensitive' } } },
+      ];
+    }
+
+    const [total, orders] = await Promise.all([
+      this.prisma.order.count({ where }),
+      this.prisma.order.findMany({
+        where,
+        skip,
+        take: limit,
+        include: {
+          customer: {
+            include: {
+              user: {
+                select: {
+                  id: true,
+                  email: true,
+                  phone: true,
+                },
+              },
+            },
+          },
+          worker: {
+            include: {
+              user: {
+                select: {
+                  id: true,
+                  email: true,
+                  phone: true,
+                },
+              },
+            },
+          },
+          service: {
+            include: {
+              category: true,
+            },
+          },
+          payment: true,
+          statusHistory: {
+            orderBy: { createdAt: 'desc' },
+            take: 1,
+          },
+        },
+        orderBy: { createdAt: 'desc' },
+      }),
+    ]);
+
+    return {
+      data: orders,
+      pagination: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit) || 1,
+      },
+    };
+  }
+
+  async getOrderById(id) {
+    const order = await this.prisma.order.findUnique({
+      where: { id },
+      include: {
+        customer: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                email: true,
+                phone: true,
+              },
+            },
+          },
+        },
+        worker: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                email: true,
+                phone: true,
+              },
+            },
+          },
+        },
+        service: {
+          include: {
+            category: true,
+          },
+        },
+        address: true,
+        statusHistory: {
+          orderBy: { createdAt: 'asc' },
+        },
+        images: true,
+        payment: true,
+        review: true,
+      },
+    });
+
+    if (!order) {
+      throw new NotFoundException('Không tìm thấy đơn hàng');
+    }
+
+    return order;
+  }
+
+  async updateOrderStatus(id, status, note, adminId) {
+    const existing = await this.prisma.order.findUnique({ where: { id } });
+    if (!existing) {
+      throw new NotFoundException('Không tìm thấy đơn hàng để cập nhật');
+    }
+
+    const [updatedOrder] = await this.prisma.$transaction([
+      this.prisma.order.update({
+        where: { id },
+        data: {
+          status,
+          ...(status === 'COMPLETED' ? { completedAt: new Date() } : {}),
+        },
+        include: {
+          customer: true,
+          worker: true,
+          service: true,
+        },
+      }),
+      this.prisma.orderStatusHistory.create({
+        data: {
+          orderId: id,
+          status,
+          note: note || `Admin cập nhật trạng thái sang ${status}`,
+          changedBy: adminId || 'ADMIN',
+        },
+      }),
+    ]);
+
+    return {
+      success: true,
+      message: `Đã cập nhật trạng thái đơn hàng sang ${status}`,
+      order: updatedOrder,
+    };
+  }
+
+  async cancelOrder(id, reason, adminId) {
+    const existing = await this.prisma.order.findUnique({ where: { id } });
+    if (!existing) {
+      throw new NotFoundException('Không tìm thấy đơn hàng để hủy');
+    }
+
+    const [updatedOrder] = await this.prisma.$transaction([
+      this.prisma.order.update({
+        where: { id },
+        data: {
+          status: 'CANCELLED',
+          cancellationReason: reason || 'Hủy bởi Quản trị viên',
+          cancelledBy: adminId || 'ADMIN',
+        },
+        include: {
+          customer: true,
+          worker: true,
+          service: true,
+        },
+      }),
+      this.prisma.orderStatusHistory.create({
+        data: {
+          orderId: id,
+          status: 'CANCELLED',
+          note: reason || 'Hủy bởi Quản trị viên',
+          changedBy: adminId || 'ADMIN',
+        },
+      }),
+    ]);
+
+    return {
+      success: true,
+      message: 'Đã hủy đơn hàng thành công',
+      order: updatedOrder,
+    };
+  }
+
+  async deleteOrder(id) {
+    const existing = await this.prisma.order.findUnique({ where: { id } });
+    if (!existing) {
+      throw new NotFoundException('Không tìm thấy đơn hàng để xóa');
+    }
+
+    await this.prisma.$transaction([
+      this.prisma.payment.deleteMany({ where: { orderId: id } }),
+      this.prisma.aIAnalysis.deleteMany({ where: { orderId: id } }),
+      this.prisma.orderImage.deleteMany({ where: { orderId: id } }),
+      this.prisma.orderStatusHistory.deleteMany({ where: { orderId: id } }),
+      this.prisma.faceVerification.deleteMany({ where: { orderId: id } }),
+      this.prisma.walletTransaction.deleteMany({ where: { orderId: id } }),
+      this.prisma.review.deleteMany({ where: { orderId: id } }),
+      this.prisma.commissionRecord.deleteMany({ where: { orderId: id } }),
+      this.prisma.order.delete({ where: { id } }),
+    ]);
+
+    return {
+      success: true,
+      message: 'Đã xóa hoàn toàn đơn hàng khỏi hệ thống',
+      id,
+    };
+  }
 }
+
 
