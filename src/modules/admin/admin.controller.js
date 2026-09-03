@@ -272,7 +272,48 @@ export class AdminController {
   async deleteService(id) {
     return this.adminService.deleteService(id);
   }
+
+  // ==========================================
+  // ANALYTICS & REPORTING
+  // ==========================================
+
+  @Get('analytics/overview')
+  @ApiOperation({ summary: 'Lấy các chỉ số tổng quan (KPI Cards) hệ thống' })
+  @ApiQuery({ name: 'timeRange', required: false, enum: ['today', '7days', 'month', 'year'] })
+  @Bind(Query('timeRange'))
+  async getAnalyticsOverview(timeRange) {
+    return this.adminService.getAnalyticsOverview(timeRange);
+  }
+
+  @Get('analytics/revenue')
+  @ApiOperation({ summary: 'Lấy dữ liệu biểu đồ doanh thu theo khoảng thời gian' })
+  @ApiQuery({ name: 'timeRange', required: false, enum: ['today', '7days', 'month', 'year'] })
+  @Bind(Query('timeRange'))
+  async getAnalyticsRevenue(timeRange) {
+    return this.adminService.getAnalyticsRevenue(timeRange);
+  }
+
+  @Get('analytics/services-distribution')
+  @ApiOperation({ summary: 'Thống kê tỷ lệ và số lượng đơn theo danh mục dịch vụ' })
+  async getServicesDistribution() {
+    return this.adminService.getServicesDistribution();
+  }
+
+  @Get('analytics/top-workers')
+  @ApiOperation({ summary: 'Lấy danh sách các đối tác thợ xuất sắc nhất' })
+  async getTopWorkers() {
+    return this.adminService.getTopWorkers();
+  }
+
+  @Get('analytics/export')
+  @ApiOperation({ summary: 'Xuất báo cáo thống kê dạng tệp CSV/Excel' })
+  @ApiQuery({ name: 'timeRange', required: false, enum: ['today', '7days', 'month', 'year'] })
+  @Bind(Query('timeRange'))
+  async exportAnalyticsReport(timeRange) {
+    return this.adminService.exportAnalyticsReport(timeRange);
+  }
 }
+
 
 
 
