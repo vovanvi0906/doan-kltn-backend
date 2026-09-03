@@ -547,29 +547,81 @@ export class AdminService {
   // WORKER APPROVAL MANAGEMENT
   // ==========================================
 
-  async getWorkers(status) {
-    const where = status ? { approvalStatus: status } : { approvalStatus: 'PENDING' };
+  async getWorkers(query = {}) {
+    // Xử lý linh hoạt cả tham số dạng string status hoặc query object
+    const statusParam = typeof query === 'string' ? query : query?.status || query?.approvalStatus;
+    const isOnlineParam = typeof query === 'object' ? query?.isOnline : undefined;
+    const search = typeof query === 'object' && query?.search ? query.search.trim() : undefined;
+    const page = typeof query === 'object' && query?.page ? Math.max(1, parseInt(query.page, 10)) : 1;
+    const limit = typeof query === 'object' && query?.limit ? Math.max(1, parseInt(query.limit, 10)) : 10;
+    const skip = (page - 1) * limit;
 
-    return this.prisma.workerProfile.findMany({
-      where,
-      include: {
-        user: {
-          select: {
-            id: true,
-            email: true,
-            phone: true,
-            status: true,
-            createdAt: true,
+    const where = {};
+
+    // 1. Lọc theo trạng thái duyệt hồ sơ
+    if (statusParam && statusParam !== 'ALL') {
+      where.approvalStatus = statusParam;
+    }
+
+    // 2. Lọc theo trạng thái trực tuyến
+    if (isOnlineParam !== undefined && isOnlineParam !== 'ALL' && isOnlineParam !== '') {
+      where.isOnline = isOnlineParam === true || isOnlineParam === 'true';
+    }
+
+    // 3. Tìm kiếm theo tên thợ, email hoặc số điện thoại
+    if (search) {
+      where.OR = [
+        { fullName: { contains: search, mode: 'insensitive' } },
+        { user: { email: { contains: search, mode: 'insensitive' } } },
+        { user: { phone: { contains: search, mode: 'insensitive' } } },
+      ];
+    }
+
+    const [total, workers] = await Promise.all([
+      this.prisma.workerProfile.count({ where }),
+      this.prisma.workerProfile.findMany({
+        where,
+        skip,
+        take: limit,
+        include: {
+          user: {
+            select: {
+              id: true,
+              email: true,
+              phone: true,
+              status: true,
+              createdAt: true,
+            },
+          },
+          workerServices: {
+            include: {
+              service: true,
+            },
+          },
+          _count: {
+            select: {
+              orders: { where: { status: 'COMPLETED' } },
+            },
           },
         },
-        workerServices: {
-          include: {
-            service: true,
-          },
-        },
+        orderBy: { createdAt: 'desc' },
+      }),
+    ]);
+
+    const data = workers.map((w) => ({
+      ...w,
+      totalJobs: w._count?.orders ?? 0,
+    }));
+
+    return {
+      data,
+      pagination: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit) || 1,
       },
-      orderBy: { createdAt: 'desc' },
-    });
+    };
   }
 
   async approveWorker(id) {
@@ -601,12 +653,13 @@ export class AdminService {
     });
 
     return {
+      success: true,
       message: 'Phê duyệt hồ sơ thợ thành công',
       worker: updatedWorker,
     };
   }
 
-  async rejectWorker(id) {
+  async rejectWorker(id, reason) {
     const worker = await this.prisma.workerProfile.findFirst({
       where: {
         OR: [{ id }, { userId: id }],
@@ -621,7 +674,7 @@ export class AdminService {
       where: { id: worker.id },
       data: {
         approvalStatus: 'REJECTED',
-        isOnline: false, // Tat trang thai online khi bi tu choi
+        isOnline: false, // Tắt trạng thái online khi bị từ chối
       },
       include: {
         user: {
@@ -636,8 +689,25 @@ export class AdminService {
     });
 
     return {
+      success: true,
       message: 'Từ chối hồ sơ thợ thành công',
+      reason: reason || 'Hồ sơ chưa đạt tiêu chuẩn phê duyệt',
       worker: updatedWorker,
     };
   }
+
+  async deleteWorker(id, currentUserId) {
+    const worker = await this.prisma.workerProfile.findFirst({
+      where: {
+        OR: [{ id }, { userId: id }],
+      },
+    });
+
+    if (!worker) {
+      throw new NotFoundException('Không tìm thấy hồ sơ thợ để xóa');
+    }
+
+    return this.deleteUser(worker.userId, currentUserId);
+  }
 }
+

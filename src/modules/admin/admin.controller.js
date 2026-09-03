@@ -122,31 +122,59 @@ export class AdminController {
   }
 
   // ==========================================
-  // WORKER APPROVAL STATE MACHINE
+  // WORKER APPROVAL & MANAGEMENT STATE MACHINE
   // ==========================================
 
   @Get('workers')
   @ApiOperation({
     summary:
-      'Lấy danh sách hồ sơ thợ (mặc định hoặc lọc theo status: PENDING, DRAFT, APPROVED, REJECTED)',
+      'Lấy danh sách hồ sơ thợ (có phân trang, tìm kiếm, lọc approvalStatus và isOnline)',
   })
   @ApiQuery({ name: 'status', required: false, type: String })
-  @Bind(Query('status'))
-  async getWorkers(status) {
-    return this.adminService.getWorkers(status);
+  @ApiQuery({ name: 'approvalStatus', required: false, type: String })
+  @ApiQuery({ name: 'isOnline', required: false, type: String })
+  @ApiQuery({ name: 'search', required: false, type: String })
+  @ApiQuery({ name: 'page', required: false, type: Number })
+  @ApiQuery({ name: 'limit', required: false, type: Number })
+  @Bind(Query())
+  async getWorkers(query) {
+    return this.adminService.getWorkers(query);
   }
 
   @Post('workers/:id/approve')
-  @ApiOperation({ summary: 'Phê duyệt hồ sơ thợ (chuyển trạng thái sang APPROVED)' })
+  @ApiOperation({ summary: 'Phê duyệt hồ sơ thợ (POST - chuyển trạng thái sang APPROVED)' })
   @Bind(Param('id'))
-  async approveWorker(id) {
+  async approveWorkerPost(id) {
+    return this.adminService.approveWorker(id);
+  }
+
+  @Patch('workers/:id/approve')
+  @ApiOperation({ summary: 'Phê duyệt hồ sơ thợ (PATCH - chuyển trạng thái sang APPROVED)' })
+  @Bind(Param('id'))
+  async approveWorkerPatch(id) {
     return this.adminService.approveWorker(id);
   }
 
   @Post('workers/:id/reject')
-  @ApiOperation({ summary: 'Từ chối hồ sơ thợ (chuyển trạng thái sang REJECTED)' })
-  @Bind(Param('id'))
-  async rejectWorker(id) {
-    return this.adminService.rejectWorker(id);
+  @ApiOperation({ summary: 'Từ chối hồ sơ thợ (POST - chuyển trạng thái sang REJECTED)' })
+  @Bind(Param('id'), Body())
+  async rejectWorkerPost(id, body) {
+    return this.adminService.rejectWorker(id, body?.reason);
+  }
+
+  @Patch('workers/:id/reject')
+  @ApiOperation({ summary: 'Từ chối hồ sơ thợ (PATCH - chuyển trạng thái sang REJECTED)' })
+  @Bind(Param('id'), Body())
+  async rejectWorkerPatch(id, body) {
+    return this.adminService.rejectWorker(id, body?.reason);
+  }
+
+  @Delete('workers/:id')
+  @ApiOperation({ summary: 'Xóa hoặc vô hiệu hóa tài khoản thợ' })
+  @Bind(Param('id'), Req())
+  async deleteWorker(id, req) {
+    const currentUserId = req?.user?.id || req?.user?.userId;
+    return this.adminService.deleteWorker(id, currentUserId);
   }
 }
+
