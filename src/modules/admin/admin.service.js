@@ -952,6 +952,210 @@ export class AdminService {
       id,
     };
   }
+
+  // ==========================================
+  // SERVICES MANAGEMENT (CRUD)
+  // ==========================================
+
+  async getServiceCategories() {
+    return this.prisma.serviceCategory.findMany({
+      orderBy: { name: 'asc' },
+      include: {
+        _count: {
+          select: { services: true },
+        },
+      },
+    });
+  }
+
+  async getAdminServices(query = {}) {
+    const isActiveParam = query?.isActive;
+    const categoryId = query?.categoryId;
+    const search = query?.search ? query.search.trim() : undefined;
+    const page = query?.page ? Math.max(1, parseInt(query.page, 10)) : 1;
+    const limit = query?.limit ? Math.max(1, parseInt(query.limit, 10)) : 10;
+    const skip = (page - 1) * limit;
+
+    const where = {};
+
+    if (isActiveParam !== undefined && isActiveParam !== 'ALL' && isActiveParam !== '') {
+      where.isActive = isActiveParam === 'true' || isActiveParam === true;
+    }
+
+    if (categoryId && categoryId !== 'ALL') {
+      where.categoryId = categoryId;
+    }
+
+    if (search) {
+      where.OR = [
+        { name: { contains: search, mode: 'insensitive' } },
+        { description: { contains: search, mode: 'insensitive' } },
+        { category: { name: { contains: search, mode: 'insensitive' } } },
+      ];
+    }
+
+    const [total, services] = await Promise.all([
+      this.prisma.service.count({ where }),
+      this.prisma.service.findMany({
+        where,
+        skip,
+        take: limit,
+        include: {
+          category: true,
+          _count: {
+            select: {
+              orders: true,
+              workerServices: true,
+            },
+          },
+        },
+        orderBy: { createdAt: 'desc' },
+      }),
+    ]);
+
+    return {
+      data: services,
+      pagination: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit) || 1,
+      },
+    };
+  }
+
+  async createService(data) {
+    let categoryId = data.categoryId;
+
+    // If categoryId not provided or not found, find or create default category
+    if (!categoryId) {
+      let defaultCat = await this.prisma.serviceCategory.findFirst();
+      if (!defaultCat) {
+        defaultCat = await this.prisma.serviceCategory.create({
+          data: {
+            name: 'Dịch vụ sửa chữa',
+            description: 'Danh mục dịch vụ kỹ thuật tổng hợp',
+          },
+        });
+      }
+      categoryId = defaultCat.id;
+    }
+
+    const newService = await this.prisma.service.create({
+      data: {
+        name: data.name,
+        description: data.description || '',
+        basePrice: data.basePrice || 100000,
+        unit: data.unit || 'lần',
+        estimatedDurationMin: data.estimatedDurationMin ? parseInt(data.estimatedDurationMin, 10) : 60,
+        isActive: data.isActive !== undefined ? Boolean(data.isActive) : true,
+        categoryId,
+      },
+      include: {
+        category: true,
+      },
+    });
+
+    return {
+      success: true,
+      message: 'Tạo dịch vụ mới thành công',
+      service: newService,
+    };
+  }
+
+  async updateService(id, data) {
+    const existing = await this.prisma.service.findUnique({ where: { id } });
+    if (!existing) {
+      throw new NotFoundException('Không tìm thấy dịch vụ để cập nhật');
+    }
+
+    const updateData = {};
+    if (data.name !== undefined) updateData.name = data.name;
+    if (data.description !== undefined) updateData.description = data.description;
+    if (data.basePrice !== undefined) updateData.basePrice = data.basePrice;
+    if (data.unit !== undefined) updateData.unit = data.unit;
+    if (data.estimatedDurationMin !== undefined) {
+      updateData.estimatedDurationMin = parseInt(data.estimatedDurationMin, 10);
+    }
+    if (data.isActive !== undefined) updateData.isActive = Boolean(data.isActive);
+    if (data.categoryId) updateData.categoryId = data.categoryId;
+
+    const updated = await this.prisma.service.update({
+      where: { id },
+      data: updateData,
+      include: {
+        category: true,
+      },
+    });
+
+    return {
+      success: true,
+      message: 'Cập nhật dịch vụ thành công',
+      service: updated,
+    };
+  }
+
+  async toggleServiceStatus(id) {
+    const existing = await this.prisma.service.findUnique({ where: { id } });
+    if (!existing) {
+      throw new NotFoundException('Không tìm thấy dịch vụ');
+    }
+
+    const updated = await this.prisma.service.update({
+      where: { id },
+      data: {
+        isActive: !existing.isActive,
+      },
+      include: {
+        category: true,
+      },
+    });
+
+    return {
+      success: true,
+      message: `Đã ${updated.isActive ? 'kích hoạt' : 'tạm ngưng'} dịch vụ "${updated.name}"`,
+      service: updated,
+    };
+  }
+
+  async deleteService(id) {
+    const existing = await this.prisma.service.findUnique({
+      where: { id },
+      include: {
+        _count: {
+          select: { orders: true, workerServices: true },
+        },
+      },
+    });
+
+    if (!existing) {
+      throw new NotFoundException('Không tìm thấy dịch vụ để xóa');
+    }
+
+    // If service has related orders or workers, soft delete (turn inactive) to prevent breaking relations
+    if (existing._count?.orders > 0 || existing._count?.workerServices > 0) {
+      const updated = await this.prisma.service.update({
+        where: { id },
+        data: { isActive: false },
+        include: { category: true },
+      });
+      return {
+        success: true,
+        message: `Dịch vụ "${existing.name}" đã có dữ liệu liên kết, đã chuyển sang trạng thái tạm ngưng (Soft delete).`,
+        service: updated,
+        softDeleted: true,
+      };
+    }
+
+    // Otherwise, permanently delete
+    await this.prisma.service.delete({ where: { id } });
+
+    return {
+      success: true,
+      message: `Đã xóa dịch vụ "${existing.name}" thành công`,
+      id,
+    };
+  }
 }
 
 

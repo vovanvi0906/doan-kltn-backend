@@ -222,6 +222,57 @@ export class AdminController {
   async deleteOrder(id) {
     return this.adminService.deleteOrder(id);
   }
+
+  // ==========================================
+  // SERVICES MANAGEMENT (CRUD)
+  // ==========================================
+
+  @Get('service-categories')
+  @ApiOperation({ summary: 'Lấy toàn bộ danh mục dịch vụ trong hệ thống' })
+  async getServiceCategories() {
+    return this.adminService.getServiceCategories();
+  }
+
+  @Get('services')
+  @ApiOperation({ summary: 'Lấy danh sách dịch vụ (có phân trang, lọc trạng thái isActive, tìm kiếm)' })
+  @ApiQuery({ name: 'isActive', required: false, type: String })
+  @ApiQuery({ name: 'categoryId', required: false, type: String })
+  @ApiQuery({ name: 'search', required: false, type: String })
+  @ApiQuery({ name: 'page', required: false, type: Number })
+  @ApiQuery({ name: 'limit', required: false, type: Number })
+  @Bind(Query())
+  async getAdminServices(query) {
+    return this.adminService.getAdminServices(query);
+  }
+
+  @Post('services')
+  @ApiOperation({ summary: 'Tạo mới một gói dịch vụ' })
+  @Bind(Body())
+  async createService(body) {
+    return this.adminService.createService(body);
+  }
+
+  @Patch('services/:id')
+  @ApiOperation({ summary: 'Cập nhật thông tin chi tiết hoặc giá khởi điểm của một dịch vụ' })
+  @Bind(Param('id'), Body())
+  async updateService(id, body) {
+    return this.adminService.updateService(id, body);
+  }
+
+  @Patch('services/:id/toggle')
+  @ApiOperation({ summary: 'Chuyển đổi nhanh trạng thái hoạt động của dịch vụ (Bật/Tắt)' })
+  @Bind(Param('id'))
+  async toggleServiceStatus(id) {
+    return this.adminService.toggleServiceStatus(id);
+  }
+
+  @Delete('services/:id')
+  @ApiOperation({ summary: 'Xóa hoặc tạm ngưng cung cấp dịch vụ' })
+  @Bind(Param('id'))
+  async deleteService(id) {
+    return this.adminService.deleteService(id);
+  }
 }
+
 
 
