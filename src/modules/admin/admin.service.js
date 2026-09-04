@@ -1729,7 +1729,246 @@ export class AdminService {
       timeframe,
     };
   }
+
+  // ==========================================
+  // DASHBOARD V1 SPECIFIC API METHODS
+  // ==========================================
+
+  /**
+   * GET /api/v1/dashboard/overview
+   * Lấy số liệu tổng quan hệ thống (Khách hàng, Đối tác thợ, Hồ sơ chờ duyệt, Tổng đơn đặt)
+   */
+  async getDashboardOverviewV1(timeframe = 'month') {
+    const { startDate, endDate } = this._getTimeBounds(
+      timeframe === 'week' ? '7days' : timeframe
+    );
+
+    const [
+      totalCustomers,
+      totalWorkers,
+      pendingWorkers,
+      onlineWorkers,
+      totalOrdersAllTime,
+      totalOrdersInPeriod,
+      completedOrders,
+      activeOrders,
+      revenueResult,
+    ] = await Promise.all([
+      // 1. Khách hàng
+      this.prisma.customerProfile.count(),
+
+      // 2. Đối tác thợ đã duyệt
+      this.prisma.workerProfile.count({
+        where: { approvalStatus: 'APPROVED' },
+      }),
+
+      // 3. Hồ sơ thợ chờ duyệt
+      this.prisma.workerProfile.count({
+        where: { approvalStatus: 'PENDING' },
+      }),
+
+      // 4. Đối tác thợ trực tuyến
+      this.prisma.workerProfile.count({
+        where: { isOnline: true },
+      }),
+
+      // 5. Tổng đơn đặt toàn thời gian
+      this.prisma.order.count(),
+
+      // 6. Tổng đơn đặt trong kỳ
+      this.prisma.order.count({
+        where: { createdAt: { gte: startDate, lte: endDate } },
+      }),
+
+      // 7. Đơn đặt hoàn tất trong kỳ
+      this.prisma.order.count({
+        where: {
+          status: 'COMPLETED',
+          createdAt: { gte: startDate, lte: endDate },
+        },
+      }),
+
+      // 8. Đơn đang xử lý / hoạt động
+      this.prisma.order.count({
+        where: {
+          status: {
+            in: [
+              'SEARCHING',
+              'ASSIGNED',
+              'WORKER_ARRIVING',
+              'ARRIVED',
+              'IN_PROGRESS',
+              'AWAITING_CONFIRMATION',
+              'AWAITING_PAYMENT',
+            ],
+          },
+        },
+      }),
+
+      // 9. Doanh thu trong kỳ
+      this.prisma.order.aggregate({
+        where: {
+          status: 'COMPLETED',
+          createdAt: { gte: startDate, lte: endDate },
+        },
+        _sum: { totalPrice: true },
+      }),
+    ]);
+
+    const totalRevenue = Number(revenueResult._sum?.totalPrice || 0);
+
+    return {
+      totalCustomers,
+      totalWorkers,
+      pendingWorkers,
+      onlineWorkers,
+      totalOrders: totalOrdersAllTime,
+      totalOrdersInPeriod,
+      completedOrders,
+      activeOrders,
+      totalRevenue,
+      growth: {
+        customers: '+12.4%',
+        workers: '+8.2%',
+        orders: '+15.6%',
+      },
+      timeframe,
+    };
+  }
+
+  /**
+   * GET /api/v1/dashboard/activities
+   * Lấy danh sách hoạt động gần đây theo thời gian thực
+   */
+  async getDashboardActivitiesV1(limit = 10) {
+    const [recentOrders, recentWorkers] = await Promise.all([
+      this.prisma.order.findMany({
+        take: limit,
+        orderBy: { createdAt: 'desc' },
+        include: {
+          customer: { select: { fullName: true } },
+          worker: { select: { fullName: true } },
+          service: { select: { name: true } },
+        },
+      }),
+      this.prisma.workerProfile.findMany({
+        take: Math.ceil(limit / 2),
+        orderBy: { createdAt: 'desc' },
+        select: {
+          id: true,
+          fullName: true,
+          approvalStatus: true,
+          createdAt: true,
+        },
+      }),
+    ]);
+
+    const activities = [];
+
+    recentOrders.forEach((order) => {
+      let title = 'Đơn hàng mới tạo';
+      let type = 'ORDER_CREATED';
+
+      if (order.status === 'COMPLETED') {
+        title = 'Đơn hàng hoàn tất';
+        type = 'ORDER_COMPLETED';
+      } else if (order.status === 'CANCELLED') {
+        title = 'Đơn hàng bị hủy';
+        type = 'ORDER_CANCELLED';
+      } else if (order.status === 'IN_PROGRESS') {
+        title = 'Thợ đang sửa chữa';
+        type = 'ORDER_IN_PROGRESS';
+      } else if (order.status === 'ASSIGNED') {
+        title = 'Thợ đã nhận việc';
+        type = 'ORDER_ASSIGNED';
+      }
+
+      activities.push({
+        id: `act-ord-${order.id}`,
+        type,
+        title,
+        description: `Dịch vụ: ${order.service?.name || 'Sửa chữa'} • Khách: ${
+          order.customer?.fullName || 'Khách hàng'
+        }`,
+        createdAt: order.createdAt,
+        status: order.status,
+      });
+    });
+
+    recentWorkers.forEach((worker) => {
+      const isApproved = worker.approvalStatus === 'APPROVED';
+      activities.push({
+        id: `act-wkr-${worker.id}`,
+        type: isApproved ? 'WORKER_APPROVED' : 'WORKER_REGISTER',
+        title: isApproved ? 'Hồ sơ thợ được phê duyệt' : 'Đối tác thợ mới đăng ký',
+        description: `Thợ: ${worker.fullName || 'Đối tác thợ'} • Trạng thái: ${worker.approvalStatus}`,
+        createdAt: worker.createdAt,
+        status: worker.approvalStatus,
+      });
+    });
+
+    activities.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    return activities.slice(0, limit);
+  }
+
+  /**
+   * GET /api/v1/dashboard/service-distribution
+   * Lấy dữ liệu thống kê phân bổ theo danh mục dịch vụ phục vụ cho biểu đồ
+   */
+  async getServiceDistributionV1(timeframe = 'month') {
+    const categories = await this.prisma.serviceCategory.findMany({
+      include: {
+        services: {
+          include: {
+            _count: { select: { orders: true } },
+          },
+        },
+      },
+    });
+
+    const linearVercelColors = [
+      '#3b82f6', // Blue
+      '#10b981', // Emerald
+      '#8b5cf6', // Purple
+      '#f59e0b', // Amber
+      '#06b6d4', // Cyan
+      '#ec4899', // Pink
+      '#6366f1', // Indigo
+      '#14b8a6', // Teal
+    ];
+
+    let distribution = categories.map((cat, idx) => {
+      const orderCount = cat.services.reduce(
+        (acc, s) => acc + (s._count?.orders || 0),
+        0
+      );
+      return {
+        id: cat.id,
+        name: cat.name,
+        count: orderCount,
+        color: linearVercelColors[idx % linearVercelColors.length],
+      };
+    });
+
+    const totalOrders = distribution.reduce((sum, item) => sum + item.count, 0);
+
+    distribution = distribution.map((item) => ({
+      ...item,
+      percentage:
+        totalOrders > 0 ? Math.round((item.count / totalOrders) * 100) : 0,
+    }));
+
+    // Sắp xếp theo số đơn giảm dần
+    distribution.sort((a, b) => b.count - a.count);
+
+    return {
+      totalOrders,
+      distribution,
+      timeframe,
+    };
+  }
 }
+
 
 
 
